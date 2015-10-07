@@ -84,11 +84,17 @@ macro_rules! make_hamt_type {
 
             fn collision_update(h: HashBits, k: K, v: V, vs: &Vec<(K, V)>) -> Self {
                 let mut vs_prime = vs.clone();
-                // FIXME: No key here not handled
-                let idx = vs.iter().position(|ref i| &i.0 == &k).unwrap();
-                vs_prime[idx] = (k, v);
+                match vs.iter().position(|ref i| &i.0 == &k) {
+                    Option::Some(idx) => {
+                        vs_prime[idx] = (k, v);
+                    },
+                    Option::None => {
+                        vs_prime.push((k, v));
+                    }
+                }
+                let len = vs_prime.len();
                 $hamt {
-                    size: vs.len(),
+                    size: len,
                     alt: Option::Some($rc_new($alt::Collision(h, vs_prime)))
                 }
             }
