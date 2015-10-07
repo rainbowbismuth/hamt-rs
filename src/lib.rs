@@ -466,7 +466,7 @@ mod tests {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let mut hamt = HamtArc::new();
             let length: usize = Arbitrary::arbitrary(g);
-            for _ in 0 .. max(length, 2048) {
+            for _ in 0..max(length, 2048) {
                 let kv: (isize, isize) = Arbitrary::arbitrary(g);
                 hamt = hamt.insert(kv.0, kv.1);
             }
