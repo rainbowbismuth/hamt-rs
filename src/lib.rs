@@ -461,6 +461,7 @@ mod tests {
     use std::cmp::max;
     use self::test::Bencher;
     use super::{HamtRc, HamtArc};
+    use std::collections::HashMap;
 
     impl Arbitrary for HamtArc<isize, isize> {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -488,6 +489,81 @@ mod tests {
         hamt_with_key.len() == hamt_without_key.len() + 1
     }
 
+    #[derive(Copy, Clone, Debug)]
+    enum Command {
+        Insert(isize, isize),
+        Remove(isize),
+        CheckEquals(isize),
+    }
+
+    impl Arbitrary for Command {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let cmd: usize = Arbitrary::arbitrary(g);
+            let key: isize = Arbitrary::arbitrary(g);
+            match cmd % 5 {
+                0 => {
+                    Command::CheckEquals(key % 200)
+                }
+                1 => {
+                    Command::Remove(key % 200)
+                }
+                _ => {
+                    let value: isize = Arbitrary::arbitrary(g);
+                    Command::Insert(key % 200, value % 200)
+                }
+            }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct Commands {
+        cmds: Vec<Command>,
+    }
+
+    impl Arbitrary for Commands {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let mut cmds = Vec::new();
+            for _ in 0..50000 {
+                cmds.push(Arbitrary::arbitrary(g));
+            }
+            return Commands { cmds: cmds };
+        }
+    }
+
+    fn simulation_testing(v: Commands) -> bool {
+        let mut hamt: HamtRc<isize, isize> = HamtRc::new();
+        let mut hashmap: HashMap<isize, isize> = HashMap::new();
+        for cmd in v.cmds {
+            match cmd {
+                Command::Insert(k, v) => {
+                    hamt = hamt.insert(k, v);
+                    hashmap.insert(k, v);
+
+                    if hamt.contains_key(&k) != hashmap.contains_key(&k) {
+                        return false;
+                    }
+                }
+                Command::Remove(k) => {
+                    hamt = hamt.remove(&k);
+                    hashmap.remove(&k);
+
+                    if hamt.contains_key(&k) != hashmap.contains_key(&k) {
+                        return false;
+                    }
+                }
+                Command::CheckEquals(k) => {
+                    if hamt.get(&k) != hashmap.get(&k) {
+                        return false;
+                    }
+                }
+            }
+            if hamt.len() != hashmap.len() {
+                return false;
+            }
+        }
+        return true;
+    }
+
     #[test]
     fn test_prop_insert_then_get() {
         quickcheck(prop_insert_then_get as fn(HamtArc<isize, isize>, isize, isize) -> bool);
@@ -503,6 +579,11 @@ mod tests {
         quickcheck(prop_insert_then_remove_length_check as fn(HamtArc<isize, isize>, isize) -> bool);
     }
 
+    #[test]
+    fn test_simulation_testing() {
+        quickcheck(simulation_testing as fn(Commands) -> bool);
+    }
+
     #[bench]
     fn bench_add_one_hundred_keys_hamtrc(b: &mut Bencher) {
         b.iter(|| {
@@ -512,7 +593,6 @@ mod tests {
 
     #[bench]
     fn bench_add_one_hundred_keys_hashmap(b: &mut Bencher) {
-        use std::collections::HashMap;
         b.iter(|| {
             let mut hm = HashMap::new();
             for i in 0..100 {
@@ -533,7 +613,6 @@ mod tests {
 
     #[bench]
     fn bench_look_up_one_hundred_keys_hashmap(b: &mut Bencher) {
-        use std::collections::HashMap;
         let mut hm = HashMap::new();
         for i in 0..1000 {
             hm.insert(i, i);
@@ -558,7 +637,6 @@ mod tests {
 
     #[bench]
     fn bench_remove_one_hundred_keys_hashmap(b: &mut Bencher) {
-        use std::collections::HashMap;
         let mut hashmap_orig = HashMap::new();
         for i in 0..1000 {
             hashmap_orig.insert(i, i);
