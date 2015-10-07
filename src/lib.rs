@@ -1,3 +1,4 @@
+#![feature(test)]
 use std::rc::Rc;
 use std::sync::Arc;
 use std::hash::{Hash, Hasher};
@@ -426,10 +427,12 @@ make_hamt_type!(HamtArc, AltArc, Arc, Arc::new, Arc<AltArc<K,V>>);
 
 #[cfg(test)]
 mod tests {
+    extern crate test;
     extern crate quickcheck;
     use self::quickcheck::{Arbitrary, Gen, quickcheck};
     use std::cmp::max;
     use super::*;
+    use self::test::Bencher;
 
     type Hamt = HamtArc<isize, isize>;
 
@@ -472,5 +475,74 @@ mod tests {
     #[test]
     fn test_prop_insert_then_remove_length_check() {
         quickcheck(prop_insert_then_remove_length_check as fn(Hamt, isize) -> bool);
+    }
+
+    #[bench]
+    fn bench_add_one_hundred_keys_hamtrc(b: &mut Bencher) {
+        b.iter(|| {
+            (0..100).fold(HamtRc::<isize,isize>::new(), |acc, x| acc.insert(x, x));
+        })
+    }
+
+    #[bench]
+    fn bench_add_one_hundred_keys_hashmap(b: &mut Bencher) {
+        use std::collections::HashMap;
+        b.iter(|| {
+            let mut hm = HashMap::new();
+            for i in 0..100 {
+                hm.insert(i, i);
+            }
+        })
+    }
+
+    #[bench]
+    fn bench_look_up_one_hundred_keys_hamtrc(b: &mut Bencher) {
+        let hamt = (0..1000).fold(HamtRc::<isize,isize>::new(), |acc, x| acc.insert(x, x));
+        b.iter(|| {
+            for i in 400..500 {
+                assert!(hamt.get(&i).is_some());
+            }
+        })
+    }
+
+    #[bench]
+    fn bench_look_up_one_hundred_keys_hashmap(b: &mut Bencher) {
+        use std::collections::HashMap;
+        let mut hm = HashMap::new();
+        for i in 0..1000 {
+            hm.insert(i, i);
+        }
+        b.iter(|| {
+            for i in 400..500 {
+                assert!(hm.get(&i).is_some());
+            }
+        })
+    }
+
+    #[bench]
+    fn bench_remove_one_hundred_keys_hamtrc(b: &mut Bencher) {
+        let hamt_orig = (0..1000).fold(HamtRc::<isize,isize>::new(), |acc, x| acc.insert(x, x));
+        b.iter(|| {
+            let mut hamt = hamt_orig.clone();
+            for i in 400..500 {
+                hamt = hamt.remove(&i);
+            }
+        })
+    }
+
+    #[bench]
+    fn bench_remove_one_hundred_keys_hashmap(b: &mut Bencher) {
+        use std::collections::HashMap;
+        let mut hashmap_orig = HashMap::new();
+        for i in 0..1000 {
+            hashmap_orig.insert(i, i);
+        }
+
+        b.iter(|| {
+            let mut hashmap = hashmap_orig.clone();
+            for i in 400..500 {
+                hashmap.remove(&i);
+            }
+        })
     }
 }
