@@ -1,0 +1,16 @@
+     Running target/release/hamt-8dd9b9efe563302d
+
+running 10 tests
+test tests::test_prop_insert_then_get ... ignored
+test tests::test_prop_insert_then_remove ... ignored
+test tests::test_prop_insert_then_remove_length_check ... ignored
+test tests::test_simulation_testing ... ignored
+test tests::bench_add_one_hundred_keys_hamtrc      ... bench:      46,950 ns/iter (+/- 9,641)
+test tests::bench_add_one_hundred_keys_hashmap     ... bench:       8,041 ns/iter (+/- 1,735)
+test tests::bench_look_up_one_hundred_keys_hamtrc  ... bench:       5,521 ns/iter (+/- 1,762)
+test tests::bench_look_up_one_hundred_keys_hashmap ... bench:       2,840 ns/iter (+/- 540)
+test tests::bench_remove_one_hundred_keys_hamtrc   ... bench:      65,964 ns/iter (+/- 7,477)
+test tests::bench_remove_one_hundred_keys_hashmap  ... bench:      16,459 ns/iter (+/- 2,964)
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 6 measured
+

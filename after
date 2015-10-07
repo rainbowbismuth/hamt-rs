@@ -1,0 +1,17 @@
+   Compiling hamt v0.1.0 (file:///Users/emilybellows/Workspace/hamt-rs)
+     Running target/release/hamt-8dd9b9efe563302d
+
+running 10 tests
+test tests::test_prop_insert_then_get ... ignored
+test tests::test_prop_insert_then_remove ... ignored
+test tests::test_prop_insert_then_remove_length_check ... ignored
+test tests::test_simulation_testing ... ignored
+test tests::bench_add_one_hundred_keys_hamtrc      ... bench:      49,916 ns/iter (+/- 28,346)
+test tests::bench_add_one_hundred_keys_hashmap     ... bench:       7,926 ns/iter (+/- 358)
+test tests::bench_look_up_one_hundred_keys_hamtrc  ... bench:       5,605 ns/iter (+/- 141)
+test tests::bench_look_up_one_hundred_keys_hashmap ... bench:       2,805 ns/iter (+/- 129)
+test tests::bench_remove_one_hundred_keys_hamtrc   ... bench:      84,151 ns/iter (+/- 5,219)
+test tests::bench_remove_one_hundred_keys_hashmap  ... bench:      16,582 ns/iter (+/- 3,658)
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 6 measured
+

@@ -2,6 +2,9 @@
 #![feature(test)]
 
 mod internal {
+    use std::ops::Index;
+    use std::slice;
+
     pub type Bitmap = u64;
     pub type HashBits = u64;
     pub type Shift = u64;
@@ -21,6 +24,256 @@ mod internal {
 
     pub fn sparse_index(b: Bitmap, m: Bitmap) -> usize {
         ((b & (m - 1)).count_ones()) as usize
+    }
+
+    #[derive(Clone, Debug)]
+    pub enum SmallVec<T> {
+        Zero,
+        One(T),
+        Two(T, T),
+        Big(Vec<T>),
+    }
+
+    impl<T> SmallVec<T> {
+        pub fn new() -> Self {
+            SmallVec::Zero
+        }
+
+        pub fn one(t: T) -> Self {
+            SmallVec::One(t)
+        }
+
+        pub fn two(x: T, y: T) -> Self {
+            SmallVec::Two(x, y)
+        }
+
+        pub fn big(ts: Vec<T>) -> Self {
+            SmallVec::Big(ts)
+        }
+
+        #[inline]
+        pub fn len(&self) -> usize {
+            match self {
+                &SmallVec::Big(ref ts) => ts.len(),
+                &SmallVec::Zero => 0,
+                &SmallVec::One(_) => 1,
+                &SmallVec::Two(_, _) => 2,
+            }
+        }
+
+        pub fn push(self, t: T) -> Self {
+            match self {
+                SmallVec::Big(mut ts) => {
+                    ts.push(t);
+                    SmallVec::Big(ts)
+                }
+                SmallVec::Zero => {
+                    SmallVec::One(t)
+                }
+                SmallVec::One(x) => {
+                    SmallVec::Two(x, t)
+                }
+                SmallVec::Two(x, y) => {
+                    SmallVec::Big(vec![x, y, t])
+                }
+            }
+        }
+
+        pub fn insert(self, idx: usize, t: T) -> Self {
+            match self {
+                SmallVec::Big(mut ts) => {
+                    ts.insert(idx, t);
+                    return SmallVec::Big(ts);
+                }
+                SmallVec::Zero => {
+                    assert!(idx == 0);
+                    return SmallVec::One(t);
+                }
+                SmallVec::One(x) => {
+                    match idx {
+                        0 => {
+                            return SmallVec::Two(t, x);
+                        }
+                        1 => {
+                            return SmallVec::Two(x, t);
+                        }
+                        _ => {
+                            panic!("index out of bounds");
+                        }
+                    }
+                }
+                SmallVec::Two(x, y) => {
+                    match idx {
+                        0 => {
+                            return SmallVec::Big(vec![t, x, y]);
+                        }
+                        1 => {
+                            return SmallVec::Big(vec![x, t, y]);
+                        }
+                        2 => {
+                            return SmallVec::Big(vec![x, y, t]);
+                        }
+                        _ => {
+                            panic!("index out of bounds");
+                        }
+                    }
+                }
+            }
+        }
+
+        pub fn remove(self, idx: usize) -> Self {
+            match self {
+                SmallVec::Big(mut ts) => {
+                    ts.remove(idx);
+                    return SmallVec::Big(ts);
+                }
+                SmallVec::Zero => {
+                    panic!("empty smallvec");
+                }
+                SmallVec::One(_) => {
+                    assert!(idx == 0, "index out of bounds");
+                    return SmallVec::Zero;
+                }
+                SmallVec::Two(x, y) => {
+                    match idx {
+                        0 => {
+                            return SmallVec::One(y);
+                        }
+                        1 => {
+                            return SmallVec::One(x);
+                        }
+                        _ => {
+                            panic!("index out of bounds");
+                        }
+                    }
+                }
+            }
+        }
+
+        pub fn update(self, idx: usize, t: T) -> Self {
+            match self {
+                SmallVec::Big(mut ts) => {
+                    ts[idx] = t;
+                    return SmallVec::Big(ts);
+                }
+                SmallVec::Zero => {
+                    panic!("empty smallvec");
+                }
+                SmallVec::One(_) => {
+                    assert!(idx == 0, "index out of bounds");
+                    return SmallVec::One(t);
+                }
+                SmallVec::Two(x, y) => {
+                    match idx {
+                        0 => {
+                            return SmallVec::Two(t, y);
+                        }
+                        1 => {
+                            return SmallVec::Two(x, t);
+                        }
+                        _ => {
+                            panic!("index out of bounds");
+                        }
+                    }
+                }
+            }
+        }
+
+        pub fn iter<'a>(&'a self) -> Iter<'a, T> {
+            match self {
+                &SmallVec::Big(ref ts) => {
+                    return Iter { state: IterState::SliceIter(ts.iter()) };
+                }
+                &SmallVec::Zero => {
+                    return Iter { state: IterState::Done };
+                }
+                &SmallVec::One(ref x) => {
+                    return Iter { state: IterState::OneLeft(x) };
+                }
+                &SmallVec::Two(ref x, ref y) => {
+                    return Iter { state: IterState::TwoLeft(x, y) };
+                }
+            }
+        }
+
+        pub fn steal_big(self) -> Vec<T> {
+            match self {
+                SmallVec::Big(ts) => ts,
+                _ => { panic!("not a big smallvec"); }
+            }
+        }
+    }
+
+    impl<T> Index<usize> for SmallVec<T> {
+        type Output = T;
+
+        fn index<'a>(&'a self, idx: usize) -> &'a Self::Output {
+            match self {
+                &SmallVec::Big(ref ts) => {
+                    return &ts[idx];
+                }
+                &SmallVec::Zero => {
+                    panic!("empty smallvec");
+                }
+                &SmallVec::One(ref x) => {
+                    assert!(idx == 0, "index out of bounds");
+                    return x;
+                }
+                &SmallVec::Two(ref x, ref y) => {
+                    match idx {
+                        0 => {
+                            return x;
+                        }
+                        1 => {
+                            return y;
+                        }
+                        _ => {
+                            panic!("index out of bounds");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    enum IterState<'a, T>
+        where T: 'a
+{
+        Done,
+        OneLeft(&'a T),
+        TwoLeft(&'a T, &'a T),
+        SliceIter(slice::Iter<'a, T>),
+    }
+
+    pub struct Iter<'a, T>
+        where T: 'a
+{
+        state: IterState<'a, T>,
+    }
+
+    impl<'a, T> Iterator for Iter<'a, T> where T: 'a {
+        type Item = &'a T;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let (res, state_prime) = match &self.state {
+                &IterState::SliceIter(ref i) => {
+                    let mut i_prime = i.clone();
+                    let res = i_prime.next();
+                    (res, IterState::SliceIter(i_prime))
+                }
+                &IterState::Done => {
+                    (Option::None, IterState::Done)
+                }
+                &IterState::OneLeft(x) => {
+                    (Option::Some(x), IterState::Done)
+                }
+                &IterState::TwoLeft(x, y) => {
+                    (Option::Some(x), IterState::OneLeft(y))
+                }
+            };
+            self.state = state_prime;
+            return res;
+        }
     }
 }
 
@@ -45,7 +298,7 @@ macro_rules! make_hamt_type {
         use std::ops::Deref;
         use super::internal::{
             Bitmap, HashBits, Shift, BITS_PER_SUBKEY, FULL_NODE_MASK, index, mask,
-            sparse_index};
+            sparse_index, SmallVec};
 
         /// A persistent hash array mapped trie implementation using reference counting.
         ///
@@ -62,10 +315,9 @@ macro_rules! make_hamt_type {
 
         #[derive(Debug)]
         enum Alt<K, V> {
-            Leaf(HashBits, K, V),
-            Bitmap(Bitmap, Vec<$hamt<K, V>>),
+            Bitmap(Bitmap, SmallVec<$hamt<K, V>>),
             Full(Vec<$hamt<K, V>>),
-            Collision(HashBits, Vec<(K, V)>)
+            Collision(HashBits, SmallVec<(K, V)>)
         }
 
         impl<K, V> $hamt<K, V> where K: Hash + Eq + Clone, V: Clone {
@@ -80,20 +332,13 @@ macro_rules! make_hamt_type {
             fn leaf(h: HashBits, k: K, v: V) -> Self {
                 $hamt {
                     size: 1,
-                    alt: Option::Some($rc_new(Alt::Leaf(h, k, v)))
+                    alt: Option::Some($rc_new(Alt::Collision(h,
+                        SmallVec::one((k,v)))))
                 }
             }
 
-            fn collision(h: HashBits, k: K, v: V, k0: &K, v0: &V) -> Self {
-                $hamt {
-                    size: 2,
-                    alt: Option::Some($rc_new(Alt::Collision(h, vec![(k, v), (k0.clone(), v0.clone())])))
-                }
-            }
-
-            fn collision_delete(h: HashBits, idx: usize, vs: &Vec<(K, V)>) -> Self {
-                let mut vs_prime = vs.clone();
-                vs_prime.remove(idx);
+            fn collision_delete(h: HashBits, idx: usize, vs: &SmallVec<(K, V)>) -> Self {
+                let vs_prime = vs.clone().remove(idx);
                 let len = vs_prime.len();
                 $hamt {
                     size: len,
@@ -101,14 +346,14 @@ macro_rules! make_hamt_type {
                 }
             }
 
-            fn collision_update(h: HashBits, k: K, v: V, vs: &Vec<(K, V)>) -> Self {
+            fn collision_update(h: HashBits, k: K, v: V, vs: &SmallVec<(K, V)>) -> Self {
                 let mut vs_prime = vs.clone();
                 match vs.iter().position(|ref i| &i.0 == &k) {
                     Option::Some(idx) => {
-                        vs_prime[idx] = (k, v);
+                        vs_prime = vs_prime.update(idx, (k, v));
                     },
                     Option::None => {
-                        vs_prime.push((k, v));
+                        vs_prime = vs_prime.push((k, v));
                     }
                 }
                 let len = vs_prime.len();
@@ -118,19 +363,19 @@ macro_rules! make_hamt_type {
                 }
             }
 
-            fn bitmap_indexed_or_full(b: Bitmap, vs: Vec<$hamt<K, V>>) -> Self {
+            fn bitmap_indexed_or_full(b: Bitmap, vs: SmallVec<$hamt<K, V>>) -> Self {
                 if b == FULL_NODE_MASK {
                     let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
                     $hamt {
                         size: size,
-                        alt: Option::Some($rc_new(Alt::Full(vs)))
+                        alt: Option::Some($rc_new(Alt::Full(vs.steal_big())))
                     }
                 } else {
                     $hamt::bitmap(b, vs)
                 }
             }
 
-            fn bitmap(b: Bitmap, vs: Vec<$hamt<K, V>>) -> Self {
+            fn bitmap(b: Bitmap, vs: SmallVec<$hamt<K, V>>) -> Self {
                 let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
                 $hamt {
                     size: size,
@@ -146,23 +391,6 @@ macro_rules! make_hamt_type {
                 }
             }
 
-            fn two(h: HashBits, s: Shift, k: K, v: V, h0: HashBits, k0: &K, v0: &V) -> Self {
-                let bp1 = mask(h, s);
-                let bp2 = mask(h0, s);
-                if bp1 == bp2 {
-                    let st = $hamt::two(h, s + BITS_PER_SUBKEY, k, v, h0, k0, v0);
-                    return $hamt::bitmap(bp1, vec![st]);
-                } else {
-                    let l1 = $hamt::leaf(h, k, v);
-                    let l2 = $hamt::leaf(h0, k0.clone(), v0.clone());
-                    if index(h, s) < index(h0, s) {
-                        return $hamt::bitmap(bp1 | bp2, vec![l1, l2]);
-                    } else {
-                        return $hamt::bitmap(bp1 | bp2, vec![l2, l1]);
-                    }
-                }
-            }
-
             fn is_leaf_or_collision(&self) -> bool {
                 match self.alt {
                     Option::None => {
@@ -170,7 +398,6 @@ macro_rules! make_hamt_type {
                     },
                     Option::Some(ref rc) => {
                         match rc.deref() {
-                            &Alt::Leaf(_, _, _) => true,
                             &Alt::Collision(_, _) => true,
                             _ => false
                         }
@@ -205,13 +432,6 @@ macro_rules! make_hamt_type {
                         },
                         Option::Some(ref rc) => {
                             match rc.deref() {
-                                &Alt::Leaf(lh, ref lk, ref lv) => {
-                                    if h == lh && k == lk.borrow() {
-                                        return Option::Some(&lv);
-                                    } else {
-                                        return Option::None;
-                                    }
-                                },
                                 &Alt::Bitmap(b, ref vs) => {
                                     let m = mask(h, shift);
                                     if b & m == 0 {
@@ -229,7 +449,7 @@ macro_rules! make_hamt_type {
                                 },
                                 &Alt::Collision(hx, ref vs) => {
                                     if h == hx {
-                                        for kv in vs {
+                                        for kv in vs.iter() {
                                             if k == kv.0.borrow() {
                                                 return Option::Some(&kv.1);
                                             }
@@ -266,29 +486,18 @@ macro_rules! make_hamt_type {
                     },
                     Option::Some(ref rc) => {
                         match rc.deref() {
-                            &Alt::Leaf(h0, ref k0, ref v0) => {
-                                if h == h0 {
-                                    if &k == k0 {
-                                        return $hamt::leaf(h, k, v);
-                                    } else {
-                                        return $hamt::collision(h, k, v, k0, v0);
-                                    }
-                                } else {
-                                    return $hamt::two(h, s, k, v, h0, k0, v0);
-                                }
-                            },
                             &Alt::Bitmap(b, ref vs) => {
                                 let m = mask(h, s);
                                 let i = sparse_index(b, m);
                                 if b & m == 0 {
-                                    let mut vs_prime: Vec<$hamt<K,V>> = (*vs).clone();
-                                    vs_prime.insert(i, $hamt::leaf(h, k, v));
+                                    let mut vs_prime: SmallVec<$hamt<K,V>> = (*vs).clone();
+                                    vs_prime = vs_prime.insert(i, $hamt::leaf(h, k, v));
                                     return $hamt::bitmap_indexed_or_full(b | m, vs_prime);
                                 } else {
                                     let ref st = vs[i];
                                     let new_t = st.insert_recur(h, k, v, s + BITS_PER_SUBKEY);
-                                    let mut vs_prime: Vec<$hamt<K,V>> = (*vs).clone();
-                                    vs_prime[i] = new_t;
+                                    let mut vs_prime: SmallVec<$hamt<K,V>> = (*vs).clone();
+                                    vs_prime = vs_prime.update(i, new_t);
                                     return $hamt::bitmap(b, vs_prime);
                                 }
                             },
@@ -304,7 +513,7 @@ macro_rules! make_hamt_type {
                                 if h == hx {
                                     return $hamt::collision_update(h, k, v, vs);
                                 } else {
-                                    let bi = $hamt::bitmap(mask(hx, s), vec![self.clone()]);
+                                    let bi = $hamt::bitmap(mask(hx, s), SmallVec::one(self.clone()));
                                     return bi.insert_recur(h, k, v, s);
                                 }
                             }
@@ -332,13 +541,6 @@ macro_rules! make_hamt_type {
                     },
                     Option::Some(ref rc) => {
                         match rc.deref() {
-                            &Alt::Leaf(h0, ref k0, _) => {
-                                if h == h0 && k == k0.borrow() {
-                                    return $hamt::new();
-                                } else {
-                                    return self.clone();
-                                }
-                            },
                             &Alt::Bitmap(b, ref vs) => {
                                 let m = mask(h, s);
                                 let i = sparse_index(b, m);
@@ -360,7 +562,7 @@ macro_rules! make_hamt_type {
                                                             return l.clone();
                                                         }
                                                         let mut vs_prime = vs.clone();
-                                                        vs_prime.remove(i);
+                                                        vs_prime = vs_prime.remove(i);
                                                         return $hamt::bitmap(b & (!m), vs_prime);
                                                     },
                                                     (1, l, _) => {
@@ -368,19 +570,19 @@ macro_rules! make_hamt_type {
                                                             return l.clone();
                                                         }
                                                         let mut vs_prime = vs.clone();
-                                                        vs_prime.remove(i);
+                                                        vs_prime = vs_prime.remove(i);
                                                         return $hamt::bitmap(b & (!m), vs_prime);
                                                     },
                                                     _ => {
                                                         let mut vs_prime = vs.clone();
-                                                        vs_prime.remove(i);
+                                                        vs_prime = vs_prime.remove(i);
                                                         return $hamt::bitmap(b & (!m), vs_prime);
                                                     }
                                                 }
                                             },
                                             _ => {
                                                 let mut vs_prime = vs.clone();
-                                                vs_prime.remove(i);
+                                                vs_prime = vs_prime.remove(i);
                                                 return $hamt::bitmap(b & (!m), vs_prime);
                                             }
                                         }
@@ -390,7 +592,7 @@ macro_rules! make_hamt_type {
                                             return st_prime;
                                         }
                                         let mut vs_prime = vs.clone();
-                                        vs_prime[i] = st_prime;
+                                        vs_prime = vs_prime.update(i, st_prime);
                                         return $hamt::bitmap(b, vs_prime);
                                     }
                                 }
@@ -404,7 +606,7 @@ macro_rules! make_hamt_type {
                                         let mut vs_prime = vs.clone();
                                         vs_prime.remove(i);
                                         let bm = FULL_NODE_MASK & !(1 << i);
-                                        return $hamt::bitmap(bm, vs_prime);
+                                        return $hamt::bitmap(bm, SmallVec::big(vs_prime));
                                     }
                                     _ => {
                                         let mut vs_prime = vs.clone();
