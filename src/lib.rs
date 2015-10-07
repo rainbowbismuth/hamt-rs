@@ -1,5 +1,3 @@
-#![feature(iter_arith)]
-
 use std::rc::Rc;
 use std::sync::Arc;
 use std::hash::{Hash, Hasher};
@@ -97,7 +95,7 @@ macro_rules! make_hamt_type {
 
             fn bitmap_indexed_or_full(b: Bitmap, vs: Vec<$hamt<K, V>>) -> Self {
                 if b == FULL_NODE_MASK {
-                    let size = (&vs).iter().map(|ref st| st.len()).sum();
+                    let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
                     $hamt {
                         size: size,
                         alt: Option::Some($rc_new($alt::Full(vs)))
@@ -108,7 +106,7 @@ macro_rules! make_hamt_type {
             }
 
             fn bitmap(b: Bitmap, vs: Vec<$hamt<K, V>>) -> Self {
-                let size = (&vs).iter().map(|ref st| st.len()).sum();
+                let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
                 $hamt {
                     size: size,
                     alt: Option::Some($rc_new($alt::Bitmap(b, vs)))
@@ -116,7 +114,7 @@ macro_rules! make_hamt_type {
             }
 
             fn full(vs: Vec<$hamt<K, V>>) -> Self {
-                let size = (&vs).iter().map(|ref st| st.len()).sum();
+                let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
                 $hamt {
                     size: size,
                     alt: Option::Some($rc_new($alt::Full(vs)))
