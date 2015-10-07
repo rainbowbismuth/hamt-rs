@@ -1,4 +1,6 @@
 #![feature(test)]
+// TODO: Figure out what to do about 'warning: unused or unknown feature'
+
 use std::rc::Rc;
 use std::sync::Arc;
 use std::hash::{Hash, Hasher};
@@ -32,7 +34,7 @@ macro_rules! make_hamt_type {
         /// A persistent hash array mapped trie implementation using reference counting.
         ///
         /// Keys are required to implement `Hash` and `Eq` like `std::collections::HashMap`, but
-        /// also both keys and values are required to implement `Clone`. If you have an expensive
+        /// both keys and values are also required to implement `Clone`. If you have an expensive
         /// to clone key or value type like a `String` or `Vec`, you can wrap it in a reference
         /// counting smart pointer.
 
