@@ -1,32 +1,27 @@
-#![feature(test)]
 // TODO: Figure out what to do about 'warning: unused or unknown feature'
+#![feature(test)]
 
-use std::rc::Rc;
-use std::sync::Arc;
-use std::hash::{Hash, Hasher};
-use std::hash::SipHasher;
-use std::borrow::Borrow;
-use std::ops::Deref;
+mod internal {
+    pub type Bitmap = u64;
+    pub type HashBits = u64;
+    pub type Shift = u64;
 
-type Bitmap = u64;
-type HashBits = u64;
-type Shift = u64;
+    pub const BITS_PER_SUBKEY: u64 = 4;
+    //const MAX_CHILDREN: u64 = 16;
+    pub const SUBKEY_MASK: Bitmap = 15;
+    pub const FULL_NODE_MASK: Bitmap = 65535;
 
-const BITS_PER_SUBKEY: u64 = 4;
-//const MAX_CHILDREN: u64 = 16;
-const SUBKEY_MASK: Bitmap = 15;
-const FULL_NODE_MASK: Bitmap = 65535;
+    pub fn index(h: HashBits, s: Shift) -> usize {
+        ((h >> s) & SUBKEY_MASK) as usize
+    }
 
-fn index(h: HashBits, s: Shift) -> usize {
-    ((h >> s) & SUBKEY_MASK) as usize
-}
+    pub fn mask(h: HashBits, s: Shift) -> u64 {
+        1 << index(h, s)
+    }
 
-fn mask(h: HashBits, s: Shift) -> u64 {
-    1 << index(h, s)
-}
-
-fn sparse_index(b: Bitmap, m: Bitmap) -> usize {
-    ((b & (m - 1)).count_ones()) as usize
+    pub fn sparse_index(b: Bitmap, m: Bitmap) -> usize {
+        ((b & (m - 1)).count_ones()) as usize
+    }
 }
 
 //TODO: Try adding something like this for collision & two.
@@ -42,7 +37,16 @@ fn sparse_index(b: Bitmap, m: Bitmap) -> usize {
 //TODO: Try to mutate in place with Rc/Arc.get_mut().
 
 macro_rules! make_hamt_type {
-    ($hamt:ident, $alt:ident, $rc:ty, $rc_new:path, $rc_alt:ty) => {
+    ($hamt:ident, $rc:ty, $rc_new:path, $rc_alt:ty) => {
+
+        use std::hash::{Hash, Hasher};
+        use std::hash::SipHasher;
+        use std::borrow::Borrow;
+        use std::ops::Deref;
+        use super::internal::{
+            Bitmap, HashBits, Shift, BITS_PER_SUBKEY, FULL_NODE_MASK, index, mask,
+            sparse_index};
+
         /// A persistent hash array mapped trie implementation using reference counting.
         ///
         /// Keys are required to implement `Hash` and `Eq` like `std::collections::HashMap`, but
@@ -57,7 +61,7 @@ macro_rules! make_hamt_type {
         }
 
         #[derive(Debug)]
-        enum $alt<K, V> {
+        enum Alt<K, V> {
             Leaf(HashBits, K, V),
             Bitmap(Bitmap, Vec<$hamt<K, V>>),
             Full(Vec<$hamt<K, V>>),
@@ -76,14 +80,14 @@ macro_rules! make_hamt_type {
             fn leaf(h: HashBits, k: K, v: V) -> Self {
                 $hamt {
                     size: 1,
-                    alt: Option::Some($rc_new($alt::Leaf(h, k, v)))
+                    alt: Option::Some($rc_new(Alt::Leaf(h, k, v)))
                 }
             }
 
             fn collision(h: HashBits, k: K, v: V, k0: &K, v0: &V) -> Self {
                 $hamt {
                     size: 2,
-                    alt: Option::Some($rc_new($alt::Collision(h, vec![(k, v), (k0.clone(), v0.clone())])))
+                    alt: Option::Some($rc_new(Alt::Collision(h, vec![(k, v), (k0.clone(), v0.clone())])))
                 }
             }
 
@@ -93,7 +97,7 @@ macro_rules! make_hamt_type {
                 let len = vs_prime.len();
                 $hamt {
                     size: len,
-                    alt: Option::Some($rc_new($alt::Collision(h, vs_prime)))
+                    alt: Option::Some($rc_new(Alt::Collision(h, vs_prime)))
                 }
             }
 
@@ -110,7 +114,7 @@ macro_rules! make_hamt_type {
                 let len = vs_prime.len();
                 $hamt {
                     size: len,
-                    alt: Option::Some($rc_new($alt::Collision(h, vs_prime)))
+                    alt: Option::Some($rc_new(Alt::Collision(h, vs_prime)))
                 }
             }
 
@@ -119,7 +123,7 @@ macro_rules! make_hamt_type {
                     let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
                     $hamt {
                         size: size,
-                        alt: Option::Some($rc_new($alt::Full(vs)))
+                        alt: Option::Some($rc_new(Alt::Full(vs)))
                     }
                 } else {
                     $hamt::bitmap(b, vs)
@@ -130,7 +134,7 @@ macro_rules! make_hamt_type {
                 let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
                 $hamt {
                     size: size,
-                    alt: Option::Some($rc_new($alt::Bitmap(b, vs)))
+                    alt: Option::Some($rc_new(Alt::Bitmap(b, vs)))
                 }
             }
 
@@ -138,7 +142,7 @@ macro_rules! make_hamt_type {
                 let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
                 $hamt {
                     size: size,
-                    alt: Option::Some($rc_new($alt::Full(vs)))
+                    alt: Option::Some($rc_new(Alt::Full(vs)))
                 }
             }
 
@@ -166,8 +170,8 @@ macro_rules! make_hamt_type {
                     },
                     Option::Some(ref rc) => {
                         match rc.deref() {
-                            &$alt::Leaf(_, _, _) => true,
-                            &$alt::Collision(_, _) => true,
+                            &Alt::Leaf(_, _, _) => true,
+                            &Alt::Collision(_, _) => true,
                             _ => false
                         }
                     }
@@ -201,14 +205,14 @@ macro_rules! make_hamt_type {
                         },
                         Option::Some(ref rc) => {
                             match rc.deref() {
-                                &$alt::Leaf(lh, ref lk, ref lv) => {
+                                &Alt::Leaf(lh, ref lk, ref lv) => {
                                     if h == lh && k == lk.borrow() {
                                         return Option::Some(&lv);
                                     } else {
                                         return Option::None;
                                     }
                                 },
-                                &$alt::Bitmap(b, ref vs) => {
+                                &Alt::Bitmap(b, ref vs) => {
                                     let m = mask(h, shift);
                                     if b & m == 0 {
                                         return Option::None;
@@ -218,12 +222,12 @@ macro_rules! make_hamt_type {
                                         continue;
                                     }
                                 },
-                                &$alt::Full(ref vs) => {
+                                &Alt::Full(ref vs) => {
                                     hamt = &vs[index(h, shift)];
                                     shift += BITS_PER_SUBKEY;
                                     continue;
                                 },
-                                &$alt::Collision(hx, ref vs) => {
+                                &Alt::Collision(hx, ref vs) => {
                                     if h == hx {
                                         for kv in vs {
                                             if k == kv.0.borrow() {
@@ -262,7 +266,7 @@ macro_rules! make_hamt_type {
                     },
                     Option::Some(ref rc) => {
                         match rc.deref() {
-                            &$alt::Leaf(h0, ref k0, ref v0) => {
+                            &Alt::Leaf(h0, ref k0, ref v0) => {
                                 if h == h0 {
                                     if &k == k0 {
                                         return $hamt::leaf(h, k, v);
@@ -273,7 +277,7 @@ macro_rules! make_hamt_type {
                                     return $hamt::two(h, s, k, v, h0, k0, v0);
                                 }
                             },
-                            &$alt::Bitmap(b, ref vs) => {
+                            &Alt::Bitmap(b, ref vs) => {
                                 let m = mask(h, s);
                                 let i = sparse_index(b, m);
                                 if b & m == 0 {
@@ -288,7 +292,7 @@ macro_rules! make_hamt_type {
                                     return $hamt::bitmap(b, vs_prime);
                                 }
                             },
-                            &$alt::Full(ref vs) => {
+                            &Alt::Full(ref vs) => {
                                 let i = index(h, s);
                                 let ref st = vs[i];
                                 let new_t = st.insert_recur(h, k, v, s + BITS_PER_SUBKEY);
@@ -296,7 +300,7 @@ macro_rules! make_hamt_type {
                                 new_vs[i] = new_t;
                                 return $hamt::full(new_vs);
                             },
-                            &$alt::Collision(hx, ref vs) => {
+                            &Alt::Collision(hx, ref vs) => {
                                 if h == hx {
                                     return $hamt::collision_update(h, k, v, vs);
                                 } else {
@@ -328,14 +332,14 @@ macro_rules! make_hamt_type {
                     },
                     Option::Some(ref rc) => {
                         match rc.deref() {
-                            &$alt::Leaf(h0, ref k0, _) => {
+                            &Alt::Leaf(h0, ref k0, _) => {
                                 if h == h0 && k == k0.borrow() {
                                     return $hamt::new();
                                 } else {
                                     return self.clone();
                                 }
                             },
-                            &$alt::Bitmap(b, ref vs) => {
+                            &Alt::Bitmap(b, ref vs) => {
                                 let m = mask(h, s);
                                 let i = sparse_index(b, m);
                                 if b & m == 0 {
@@ -391,7 +395,7 @@ macro_rules! make_hamt_type {
                                     }
                                 }
                             },
-                            &$alt::Full(ref vs) => {
+                            &Alt::Full(ref vs) => {
                                 let i = index(h, s);
                                 let st = &vs[i];
                                 let st_prime = st.remove_recur(h, k, s + BITS_PER_SUBKEY);
@@ -409,7 +413,7 @@ macro_rules! make_hamt_type {
                                     }
                                 }
                             }
-                            &$alt::Collision(hx, ref vs) => {
+                            &Alt::Collision(hx, ref vs) => {
                                 if h == hx {
                                     match vs.iter().position(|ref i| i.0.borrow() == k) {
                                         Option::Some(i) => {
@@ -436,8 +440,18 @@ macro_rules! make_hamt_type {
     }
 }
 
-make_hamt_type!(HamtRc, AltRc, Rc, Rc::new, Rc<AltRc<K,V>>);
-make_hamt_type!(HamtArc, AltArc, Arc, Arc::new, Arc<AltArc<K,V>>);
+pub mod rc {
+    use std::rc::Rc;
+    make_hamt_type!(HamtRc, Rc, Rc::new, Rc<Alt<K,V>>);
+}
+
+pub mod arc {
+    use std::sync::Arc;
+    make_hamt_type!(HamtArc, Arc, Arc::new, Arc<Alt<K,V>>);
+}
+
+pub use rc::HamtRc;
+pub use arc::HamtArc;
 
 #[cfg(test)]
 mod tests {
@@ -445,12 +459,10 @@ mod tests {
     extern crate quickcheck;
     use self::quickcheck::{Arbitrary, Gen, quickcheck};
     use std::cmp::max;
-    use super::*;
     use self::test::Bencher;
+    use super::{HamtRc, HamtArc};
 
-    type Hamt = HamtArc<isize, isize>;
-
-    impl Arbitrary for Hamt {
+    impl Arbitrary for HamtArc<isize, isize> {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let mut hamt = HamtArc::new();
             let length: usize = Arbitrary::arbitrary(g);
@@ -462,15 +474,15 @@ mod tests {
         }
     }
 
-    fn prop_insert_then_get(hamt: Hamt, key: isize, value: isize) -> bool {
+    fn prop_insert_then_get(hamt: HamtArc<isize, isize>, key: isize, value: isize) -> bool {
         hamt.insert(key, value).get(&key) == Option::Some(&value)
     }
 
-    fn prop_insert_then_remove(hamt: Hamt, key: isize) -> bool {
+    fn prop_insert_then_remove(hamt: HamtArc<isize, isize>, key: isize) -> bool {
         hamt.insert(key, 0).remove(&key).contains_key(&key) == false
     }
 
-    fn prop_insert_then_remove_length_check(hamt: Hamt, key: isize) -> bool {
+    fn prop_insert_then_remove_length_check(hamt: HamtArc<isize, isize>, key: isize) -> bool {
         let hamt_with_key = hamt.insert(key, 0);
         let hamt_without_key = hamt_with_key.remove(&key);
         hamt_with_key.len() == hamt_without_key.len() + 1
@@ -478,23 +490,23 @@ mod tests {
 
     #[test]
     fn test_prop_insert_then_get() {
-        quickcheck(prop_insert_then_get as fn(Hamt, isize, isize) -> bool);
+        quickcheck(prop_insert_then_get as fn(HamtArc<isize, isize>, isize, isize) -> bool);
     }
 
     #[test]
     fn test_prop_insert_then_remove() {
-        quickcheck(prop_insert_then_remove as fn(Hamt, isize) -> bool);
+        quickcheck(prop_insert_then_remove as fn(HamtArc<isize, isize>, isize) -> bool);
     }
 
     #[test]
     fn test_prop_insert_then_remove_length_check() {
-        quickcheck(prop_insert_then_remove_length_check as fn(Hamt, isize) -> bool);
+        quickcheck(prop_insert_then_remove_length_check as fn(HamtArc<isize, isize>, isize) -> bool);
     }
 
     #[bench]
     fn bench_add_one_hundred_keys_hamtrc(b: &mut Bencher) {
         b.iter(|| {
-            (0..100).fold(HamtRc::<isize,isize>::new(), |acc, x| acc.insert(x, x));
+            (0..100).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(x, x));
         })
     }
 
@@ -511,7 +523,7 @@ mod tests {
 
     #[bench]
     fn bench_look_up_one_hundred_keys_hamtrc(b: &mut Bencher) {
-        let hamt = (0..1000).fold(HamtRc::<isize,isize>::new(), |acc, x| acc.insert(x, x));
+        let hamt = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(x, x));
         b.iter(|| {
             for i in 400..500 {
                 assert!(hamt.get(&i).is_some());
@@ -535,7 +547,7 @@ mod tests {
 
     #[bench]
     fn bench_remove_one_hundred_keys_hamtrc(b: &mut Bencher) {
-        let hamt_orig = (0..1000).fold(HamtRc::<isize,isize>::new(), |acc, x| acc.insert(x, x));
+        let hamt_orig = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(x, x));
         b.iter(|| {
             let mut hamt = hamt_orig.clone();
             for i in 400..500 {
