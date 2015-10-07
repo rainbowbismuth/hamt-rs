@@ -29,6 +29,17 @@ fn sparse_index(b: Bitmap, m: Bitmap) -> usize {
     ((b & (m - 1)).count_ones()) as usize
 }
 
+//TODO: Try adding something like this for collision & two.
+// enum SmallVec<T> {
+//     One(T),
+//     Two(T, T),
+//     Big(Vec<T>)
+// }
+
+//TODO: Then it might be interesting to remove Leaf and turn it and Collision into 'Leaves'
+//TODO: Full could be an array with known size.
+//TODO: size can be moved into Alt, not needed when you have a Leaf or Collision.
+
 macro_rules! make_hamt_type {
     ($hamt:ident, $alt:ident, $rc:ty, $rc_new:path, $rc_alt:ty) => {
         /// A persistent hash array mapped trie implementation using reference counting.
