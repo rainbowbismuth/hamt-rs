@@ -561,6 +561,11 @@ mod tests {
                 return false;
             }
         }
+        for (key, val) in hashmap.iter() {
+            if hamt.get(key).unwrap() != val {
+                return false;
+            }
+        }
         return true;
     }
 
