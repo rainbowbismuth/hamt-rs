@@ -39,6 +39,7 @@ fn sparse_index(b: Bitmap, m: Bitmap) -> usize {
 //TODO: Then it might be interesting to remove Leaf and turn it and Collision into 'Leaves'
 //TODO: Full could be an array with known size.
 //TODO: size can be moved into Alt, not needed when you have a Leaf or Collision.
+//TODO: Try to mutate in place with Rc/Arc.get_mut().
 
 macro_rules! make_hamt_type {
     ($hamt:ident, $alt:ident, $rc:ty, $rc_new:path, $rc_alt:ty) => {
