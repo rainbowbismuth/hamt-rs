@@ -81,6 +81,7 @@ macro_rules! make_hamt_type {
             Collision(slice::Iter<'a, (K, V)>)
         }
 
+        /// A key value iterator that iterates in an unspecified order.
         pub struct Iter<'a, K, V> where K: 'a, V: 'a {
             size: usize,
             count: usize,
@@ -315,6 +316,7 @@ macro_rules! make_hamt_type {
                 return self.len() == 0
             }
 
+            /// Returns a key value iterator.
             pub fn iter<'a>(&'a self) -> Iter<'a, K, V> {
                 Iter {
                     size: self.len(),
