@@ -1,4 +1,4 @@
-// TODO: Figure out what to do about 'warning: unused or unknown feature'
+#![allow(unused_features)]
 #![feature(test)]
 
 mod internal {
@@ -33,7 +33,6 @@ mod internal {
 
 //TODO: Then it might be interesting to remove Leaf and turn it and Collision into 'Leaves'
 //TODO: Full could be an array with known size.
-//TODO: size can be moved into Alt, not needed when you have a Leaf or Collision.
 //TODO: Try to mutate in place with Rc/Arc.get_mut().
 
 macro_rules! make_hamt_type {
