@@ -192,6 +192,15 @@ macro_rules! make_hamt_type {
             }
         }
 
+        impl<'a, K, V> IntoIterator for &'a $hamt<K, V> where K: Hash + Eq + Clone + 'a, V: Clone + 'a {
+            type Item = (&'a K, &'a V);
+            type IntoIter = Iter<'a, K, V>;
+
+            fn into_iter(self) -> Iter<'a, K, V> {
+                self.iter()
+            }
+        }
+
         impl<K, V> $hamt<K, V> where K: Hash + Eq + Clone, V: Clone {
             /// Creates an empty map.
             pub fn new() -> Self {
