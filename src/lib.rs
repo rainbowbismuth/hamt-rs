@@ -38,11 +38,12 @@ mod internal {
 
 macro_rules! make_hamt_type {
     ($hamt:ident, $rc:ty, $rc_new:path, $rc_alt:ty) => {
-
+        use std::iter::FromIterator;
         use std::hash::{Hash, Hasher};
         use std::hash::SipHasher;
         use std::borrow::Borrow;
         use std::ops::Deref;
+        use std::slice;
         use super::internal::{
             Bitmap, HashBits, Shift, BITS_PER_SUBKEY, FULL_NODE_MASK, index, mask,
             sparse_index};
@@ -66,11 +67,129 @@ macro_rules! make_hamt_type {
             Alt($rc_alt)
         }
 
-        #[derive(Debug)]
+        #[derive(Debug, PartialEq, Eq)]
         enum Alt<K, V> {
             Bitmap(usize, Bitmap, Vec<$hamt<K, V>>),
             Full(usize, Vec<$hamt<K, V>>),
             Collision(HashBits, Vec<(K, V)>)
+        }
+
+        #[derive(Clone)]
+        enum Traversing<'a, K, V> where K: 'a, V: 'a {
+            Leaf(&'a K, &'a V),
+            BitmapOrFull(slice::Iter<'a, $hamt<K, V>>),
+            Collision(slice::Iter<'a, (K, V)>)
+        }
+
+        pub struct Iter<'a, K, V> where K: 'a, V: 'a {
+            size: usize,
+            count: usize,
+            stack: Vec<Traversing<'a, K, V>>
+        }
+
+        impl<K, V> Eq for $hamt<K, V> where K: Eq, V: Eq { }
+
+        impl<K, V> PartialEq for $hamt<K, V> where K: PartialEq, V: PartialEq {
+            fn eq(&self, other: &$hamt<K, V>) -> bool {
+                match (&self.inline, &other.inline) {
+                    (&Inline::Empty, &Inline::Empty) => { return true; },
+                    (&Inline::Leaf(h1, ref k1, ref v1), &Inline::Leaf(h2, ref k2, ref v2)) => {
+                        return h1 == h2 && k1 == k2 && v1 == v2;
+                    }
+                    (&Inline::Alt(ref rc1), &Inline::Alt(ref rc2)) => {
+                        let ptr1: *const Alt<K, V> = rc1.deref();
+                        let ptr2: *const Alt<K, V> = rc2.deref();
+                        if ptr1 == ptr2 {
+                            return true; // don't have to check shared structure
+                        } else {
+                            return rc1.deref() == rc2.deref();
+                        }
+                    }
+                    (_, _) => {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        impl<'a, K, V> Iterator for Iter<'a, K, V> where K: 'a + Clone, V: 'a + Clone {
+            type Item = (&'a K, &'a V);
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let last = match self.stack.last() {
+                    Option::Some(iter) => (*iter).clone(),
+                    Option::None => { return Option::None; }
+                };
+                match last {
+                    Traversing::Leaf(k, v) => {
+                        self.stack.pop();
+                        self.count += 1;
+                        return Option::Some((k, v));
+                    },
+                    Traversing::BitmapOrFull(mut iter) => {
+                        let next = iter.next();
+                        self.stack.pop();
+                        self.stack.push(Traversing::BitmapOrFull(iter));
+                        match next {
+                            Option::Some(ref hamt) => match hamt.inline {
+                                Inline::Empty => {
+                                    return self.next();
+                                },
+                                Inline::Leaf(_, ref k, ref v) => {
+                                    self.count += 1;
+                                    return Option::Some((k, v));
+                                },
+                                Inline::Alt(ref rc) => match rc.deref() {
+                                    &Alt::Bitmap(_, _, ref vs) => {
+                                        self.stack.push(Traversing::BitmapOrFull(vs.iter()));
+                                        return self.next();
+                                    },
+                                    &Alt::Full(_, ref vs) => {
+                                        self.stack.push(Traversing::BitmapOrFull(vs.iter()));
+                                        return self.next();
+                                    },
+                                    &Alt::Collision(_, ref vs) => {
+                                        self.stack.push(Traversing::Collision(vs.iter()));
+                                        return self.next();
+                                    }
+                                }
+                            },
+                            Option::None => {
+                                self.stack.pop();
+                                return self.next();
+                            }
+                        }
+                    },
+                    Traversing::Collision(mut iter) => match iter.next() {
+                        Option::Some(ref kv) => {
+                            self.count += 1;
+                            self.stack.pop();
+                            self.stack.push(Traversing::Collision(iter));
+                            return Option::Some((&kv.0, &kv.1));
+                        },
+                        Option::None => {
+                            self.stack.pop();
+                            return self.next();
+                        }
+                    }
+                }
+            }
+
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                (self.size - self.count, Option::Some(self.size - self.count))
+            }
+        }
+
+        impl<K, V> FromIterator<(K, V)> for $hamt<K, V> where K: Eq + Hash + Clone, V: Clone{
+            fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=(K, V)> {
+                iterator.into_iter().fold($hamt::new(), |x, kv| x.insert(kv.0, kv.1))
+            }
+        }
+
+        impl<'a, K, V> FromIterator<(&'a K, &'a V)> for $hamt<K, V> where K: Eq + Hash + Clone, V: Clone{
+            fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=(&'a K, &'a V)> {
+                iterator.into_iter().fold($hamt::new(), |x, kv| x.insert(kv.0.clone(), kv.1.clone()))
+            }
         }
 
         impl<K, V> $hamt<K, V> where K: Hash + Eq + Clone, V: Clone {
@@ -185,6 +304,22 @@ macro_rules! make_hamt_type {
             /// Returns true if there are no key value pairs in the map, false otherwise.
             pub fn is_empty(&self) -> bool {
                 return self.len() == 0
+            }
+
+            pub fn iter<'a>(&'a self) -> Iter<'a, K, V> {
+                Iter {
+                    size: self.len(),
+                    count: 0,
+                    stack: match self.inline {
+                        Inline::Empty => vec![],
+                        Inline::Leaf(_, ref k, ref v) => vec![Traversing::Leaf(k, v)],
+                        Inline::Alt(ref rc) => match rc.deref() {
+                            &Alt::Bitmap(_, _, ref vs) => vec![Traversing::BitmapOrFull(vs.iter())],
+                            &Alt::Full(_, ref vs) => vec![Traversing::BitmapOrFull(vs.iter())],
+                            &Alt::Collision(_, ref vs) => vec![Traversing::Collision(vs.iter())]
+                        }
+                    }
+                }
             }
 
             /// Returns a reference to the value corresponding to the given key, or None if there
@@ -453,6 +588,7 @@ mod tests {
     use self::test::Bencher;
     use super::{HamtRc, HamtArc};
     use std::collections::HashMap;
+    use std::iter::FromIterator;
 
     impl Arbitrary for HamtArc<isize, isize> {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
@@ -478,6 +614,10 @@ mod tests {
         let hamt_with_key = hamt.insert(key, 0);
         let hamt_without_key = hamt_with_key.remove(&key);
         hamt_with_key.len() == hamt_without_key.len() + 1
+    }
+
+    fn prop_from_iter_eq(hamt: HamtArc<isize, isize>) -> bool {
+        HamtArc::<isize, isize>::from_iter(hamt.iter()) == hamt
     }
 
     #[derive(Copy, Clone, Debug)]
@@ -552,8 +692,15 @@ mod tests {
                 return false;
             }
         }
+
         for (key, val) in hashmap.iter() {
             if hamt.get(key).unwrap() != val {
+                return false;
+            }
+        }
+
+        for (key, val) in hamt.iter() {
+            if hashmap.get(key).unwrap() != val {
                 return false;
             }
         }
@@ -573,6 +720,11 @@ mod tests {
     #[test]
     fn test_prop_insert_then_remove_length_check() {
         quickcheck(prop_insert_then_remove_length_check as fn(HamtArc<isize, isize>, isize) -> bool);
+    }
+
+    #[test]
+    fn test_prop_from_iter_eq() {
+        quickcheck(prop_from_iter_eq as fn(HamtArc<isize, isize>) -> bool);
     }
 
     #[test]
