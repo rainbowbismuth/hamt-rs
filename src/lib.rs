@@ -702,13 +702,13 @@ mod tests {
             }
         }
 
-        for (key, val) in hashmap.iter() {
+        for (key, val) in &hashmap {
             if hamt.get(key).unwrap() != val {
                 return false;
             }
         }
 
-        for (key, val) in hamt.iter() {
+        for (key, val) in &hamt {
             if hashmap.get(key).unwrap() != val {
                 return false;
             }
@@ -813,7 +813,7 @@ mod tests {
         let mut count = 0;
 
         b.iter(|| {
-            for (_, _) in hamt.iter() {
+            for (_, _) in &hamt {
                 count += 1;
             }
         })
@@ -828,7 +828,7 @@ mod tests {
         let mut count = 0;
 
         b.iter(|| {
-            for (_, _) in hashmap.iter() {
+            for (_, _) in &hashmap {
                 count += 1;
             }
         })
