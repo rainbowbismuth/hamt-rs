@@ -91,8 +91,8 @@ macro_rules! make_hamt_type {
                 }
             }
 
-            fn collision_delete(h: HashBits, idx: usize, vs: &Vec<(K, V)>) -> Self {
-                let mut vs_prime = vs.clone();
+            fn collision_delete(h: HashBits, idx: usize, vs: &[(K, V)]) -> Self {
+                let mut vs_prime = vs.clone().to_vec();
                 vs_prime.remove(idx);
                 let len = vs_prime.len();
                 $hamt {
@@ -101,8 +101,8 @@ macro_rules! make_hamt_type {
                 }
             }
 
-            fn collision_update(h: HashBits, k: K, v: V, vs: &Vec<(K, V)>) -> Self {
-                let mut vs_prime = vs.clone();
+            fn collision_update(h: HashBits, k: K, v: V, vs: &[(K, V)]) -> Self {
+                let mut vs_prime = vs.clone().to_vec();
                 match vs.iter().position(|ref i| &i.0 == &k) {
                     Option::Some(idx) => {
                         vs_prime[idx] = (k, v);
