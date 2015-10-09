@@ -797,4 +797,31 @@ mod tests {
             }
         })
     }
+
+    #[bench]
+    fn bench_iterate_hamtrc(b: &mut Bencher) {
+        let hamt = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(x, x));
+        let mut count = 0;
+
+        b.iter(|| {
+            for (_, _) in hamt.iter() {
+                count += 1;
+            }
+        })
+    }
+
+    #[bench]
+    fn bench_iterate_hashmap(b: &mut Bencher) {
+        let mut hashmap = HashMap::new();
+        for i in 0..1000 {
+            hashmap.insert(i, i);
+        }
+        let mut count = 0;
+
+        b.iter(|| {
+            for (_, _) in hashmap.iter() {
+                count += 1;
+            }
+        })
+    }
 }
