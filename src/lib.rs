@@ -112,27 +112,27 @@ macro_rules! make_hamt_type {
 
             fn next(&mut self) -> Option<Self::Item> {
                 let last = match self.stack.last() {
-                    Option::Some(iter) => (*iter).clone(),
-                    Option::None => { return Option::None; }
+                    Some(iter) => (*iter).clone(),
+                    None => { return None; }
                 };
                 match last {
                     Traversing::Leaf(k, v) => {
                         self.stack.pop();
                         self.count += 1;
-                        Option::Some((k, v))
+                        Some((k, v))
                     },
                     Traversing::BitmapOrFull(mut iter) => {
                         let next = iter.next();
                         self.stack.pop();
                         self.stack.push(Traversing::BitmapOrFull(iter));
                         match next {
-                            Option::Some(ref hamt) => match hamt.inline {
+                            Some(ref hamt) => match hamt.inline {
                                 Inline::Empty => {
                                     self.next()
                                 },
                                 Inline::Leaf(_, ref k, ref v) => {
                                     self.count += 1;
-                                    Option::Some((k, v))
+                                    Some((k, v))
                                 },
                                 Inline::Alt(ref rc) => match *rc.deref() {
                                     Alt::Bitmap(_, _, ref vs) => {
@@ -149,20 +149,20 @@ macro_rules! make_hamt_type {
                                     }
                                 }
                             },
-                            Option::None => {
+                            None => {
                                 self.stack.pop();
                                 self.next()
                             }
                         }
                     },
                     Traversing::Collision(mut iter) => match iter.next() {
-                        Option::Some(ref kv) => {
+                        Some(ref kv) => {
                             self.count += 1;
                             self.stack.pop();
                             self.stack.push(Traversing::Collision(iter));
-                            Option::Some((&kv.0, &kv.1))
+                            Some((&kv.0, &kv.1))
                         },
-                        Option::None => {
+                        None => {
                             self.stack.pop();
                             self.next()
                         }
@@ -171,7 +171,7 @@ macro_rules! make_hamt_type {
             }
 
             fn size_hint(&self) -> (usize, Option<usize>) {
-                (self.size - self.count, Option::Some(self.size - self.count))
+                (self.size - self.count, Some(self.size - self.count))
             }
         }
 
@@ -227,10 +227,10 @@ macro_rules! make_hamt_type {
             fn collision_update(h: HashBits, k: K, v: V, vs: &[(K, V)]) -> Self {
                 let mut vs_prime = vs.clone().to_vec();
                 match vs.iter().position(|ref i| &i.0 == &k) {
-                    Option::Some(idx) => {
+                    Some(idx) => {
                         vs_prime[idx] = (k, v);
                     },
-                    Option::None => {
+                    None => {
                         vs_prime.push((k, v));
                     }
                 }
@@ -340,20 +340,20 @@ macro_rules! make_hamt_type {
                 loop {
                     match hamt.inline {
                         Inline::Empty => {
-                            return Option::None;
+                            return None;
                         },
                         Inline::Leaf(lh, ref lk, ref lv) => {
                             if h == lh && k == lk.borrow() {
-                                return Option::Some(&lv);
+                                return Some(&lv);
                             } else {
-                                return Option::None;
+                                return None;
                             }
                         },
                         Inline::Alt(ref rc) => match *rc.deref() {
                             Alt::Bitmap(_, b, ref vs) => {
                                 let m = mask(h, shift);
                                 if b & m == 0 {
-                                    return Option::None;
+                                    return None;
                                 } else {
                                     shift += BITS_PER_SUBKEY;
                                     hamt = &vs[sparse_index(b, m)];
@@ -369,11 +369,11 @@ macro_rules! make_hamt_type {
                                 if h == hx {
                                     for kv in vs {
                                         if k == kv.0.borrow() {
-                                            return Option::Some(&kv.1);
+                                            return Some(&kv.1);
                                         }
                                     }
                                 }
-                                return Option::None;
+                                return None;
                             }
                         }
                     }
@@ -548,7 +548,7 @@ macro_rules! make_hamt_type {
                         Alt::Collision(hx, ref vs) => {
                             if h == hx {
                                 match vs.iter().position(|ref i| i.0.borrow() == k) {
-                                    Option::Some(i) => {
+                                    Some(i) => {
                                         if vs.len() == 2 {
                                             if i == 0 {
                                                 return $hamt::leaf(h, vs[1].0.clone(), vs[1].1.clone());
