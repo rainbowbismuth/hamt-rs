@@ -721,15 +721,93 @@ macro_rules! make_hamt_type {
     }
 }
 
+macro_rules! make_hamt_set_type {
+    ($hamtset: ident, $hamt: ident) => {
+        #[derive(Clone, Debug)]
+        pub struct $hamtset<K> {
+            map: $hamt<K, ()>
+        }
+
+        impl<K> Eq for $hamtset<K> where K: Eq { }
+
+        impl<K> PartialEq for $hamtset<K> where K: PartialEq {
+            fn eq(&self, other: &$hamtset<K>) -> bool {
+                self.map.eq(&other.map)
+            }
+        }
+
+        impl<K> FromIterator<K> for $hamtset<K> where K: Eq + Hash + Clone {
+            fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=K> {
+                iterator.into_iter().fold($hamtset::new(), |x, k| x.insert(&k))
+            }
+        }
+
+        impl<'a, K> FromIterator<&'a K> for $hamtset<K> where K: Eq + Hash + Clone {
+            fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=&'a K> {
+                iterator.into_iter().fold($hamtset::new(), |x, k| x.insert(&k))
+            }
+        }
+
+        impl<'a, K> IntoIterator for &'a $hamtset<K> where K: Hash + Eq + Clone + 'a {
+            type Item = &'a K;
+            type IntoIter = Keys<'a, K, ()>;
+
+            fn into_iter(self) -> Keys<'a, K, ()> {
+                self.iter()
+            }
+        }
+
+        impl<K> $hamtset<K> where K: Hash + Eq + Clone {
+            /// Returns an empty set.
+            pub fn new() -> Self {
+                $hamtset { map: $hamt::new() }
+            }
+
+            /// Returns how many items are in the set.
+            pub fn len(&self) -> usize {
+                self.map.len()
+            }
+
+            /// Returns true if the set is empty, false otherwise.
+            pub fn is_empty(&self) -> bool {
+                self.map.is_empty()
+            }
+
+            /// Inserts an item into the set.
+            pub fn insert<Q: ?Sized>(&self, k: &Q) -> Self where K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K> {
+                $hamtset { map: self.map.insert(k,&()) }
+            }
+
+            /// Returns true if the set contains the given item, false otherwise.
+            pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool where K: Borrow<Q>, Q: Hash + Eq {
+                self.map.contains_key(k)
+            }
+
+            /// Removes the given item from the set.
+            pub fn remove<Q: ?Sized>(&self, k: &Q) -> Self where K: Borrow<Q>, Q: Hash + Eq {
+                $hamtset { map: self.map.remove(k) }
+            }
+
+            /// Iterates over each item in the set in an unspecified order.
+            pub fn iter(&self) -> Keys<K, ()> {
+                self.map.keys()
+            }
+        }
+    }
+}
+
 pub mod rc {
     use std::rc::Rc;
     make_hamt_type!(HamtRc, Rc, Rc::new, Rc<Alt<K,V>>);
+    make_hamt_set_type!(HamtSetRc, HamtRc);
+
 }
 
 pub mod arc {
     use std::sync::Arc;
     make_hamt_type!(HamtArc, Arc, Arc::new, Arc<Alt<K,V>>);
+    make_hamt_set_type!(HamtSetArc, HamtArc);
 }
 
-pub use rc::HamtRc;
-pub use arc::HamtArc;
+pub use rc::{HamtRc, HamtSetRc};
+pub use arc::{HamtArc, HamtSetArc};
