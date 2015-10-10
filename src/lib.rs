@@ -34,7 +34,7 @@ mod internal {
 
 macro_rules! make_hamt_type {
     ($hamt:ident, $rc:ty, $rc_new:path, $rc_alt:ty) => {
-        use std::iter::FromIterator;
+        use std::iter::{Map, FromIterator};
         use std::hash::{Hash, Hasher};
         use std::hash::SipHasher;
         use std::borrow::Borrow;
@@ -78,10 +78,47 @@ macro_rules! make_hamt_type {
         }
 
         /// A key value iterator that iterates in an unspecified order.
+        #[derive(Clone)]
         pub struct Iter<'a, K, V> where K: 'a, V: 'a {
             size: usize,
             count: usize,
             stack: Vec<Traversing<'a, K, V>>
+        }
+
+        /// Key iterator
+        #[derive(Clone)]
+        pub struct Keys<'a, K, V> where K: 'a, V: 'a {
+            iter: Map<Iter<'a, K, V>, fn((&'a K, &'a V)) -> &'a K>
+        }
+
+        /// Value iterator
+        #[derive(Clone)]
+        pub struct Values<'a, K, V> where K: 'a, V: 'a {
+            iter: Map<Iter<'a, K, V>, fn((&'a K, &'a V)) -> &'a V>
+        }
+
+        impl<'a, K, V> Iterator for Keys<'a, K, V> where K: 'a + Clone, V: 'a + Clone {
+            type Item = &'a K;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                self.iter.next()
+            }
+        }
+
+        impl<'a, K, V> Iterator for Values<'a, K, V> where K: 'a + Clone, V: 'a + Clone {
+            type Item = &'a V;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                self.iter.next()
+            }
+        }
+
+        fn pair_to_key<'a, K, V>(kv: (&'a K, &'a V)) -> &'a K {
+            kv.0
+        }
+
+        fn pair_to_value<'a, K, V>(kv: (&'a K, &'a V)) -> &'a V {
+            kv.1
         }
 
         impl<K, V> Eq for $hamt<K, V> where K: Eq, V: Eq { }
@@ -195,7 +232,7 @@ macro_rules! make_hamt_type {
                 self.iter()
             }
         }
-
+        
         impl<K, V> $hamt<K, V> where K: Hash + Eq + Clone, V: Clone {
             /// Creates an empty map.
             pub fn new() -> Self {
@@ -325,6 +362,16 @@ macro_rules! make_hamt_type {
                         }
                     }
                 }
+            }
+
+            /// Returns an iterator that visits every key in an unspecified order.
+            pub fn keys(&self) -> Keys<K, V> {
+                Keys { iter: self.iter().map(pair_to_key) }
+            }
+
+            /// Returns an iterator that visits every value in an unspecified order.
+            pub fn values(&self) -> Values<K, V> {
+                Values { iter: self.iter().map(pair_to_value) }
             }
 
             /// Returns a reference to the value corresponding to the given key, or None if there
