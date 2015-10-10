@@ -779,7 +779,7 @@ macro_rules! make_hamt_set_type {
             }
 
             /// Returns true if the set contains the given item, false otherwise.
-            pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool where K: Borrow<Q>, Q: Hash + Eq {
+            pub fn contains<Q: ?Sized>(&self, k: &Q) -> bool where K: Borrow<Q>, Q: Hash + Eq {
                 self.map.contains_key(k)
             }
 
