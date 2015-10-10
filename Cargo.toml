@@ -1,5 +1,6 @@
 [package]
 name = "hamt"
+description = "Purely functional hash array mapped tries."
 version = "0.1.0"
 authors = ["Emily A. Bellows <emily.a.bellows@gmail.com>"]
 readme = "README.md"
