@@ -78,13 +78,13 @@ fn simulation_testing(v: Commands) -> bool {
     }
 
     for (key, val) in &hashmap {
-        if hamt.get(key).unwrap() != val {
+        if &hamt[key] != val {
             return false;
         }
     }
 
     for (key, val) in &hamt {
-        if hashmap.get(key).unwrap() != val {
+        if &hashmap[key] != val {
             return false;
         }
     }

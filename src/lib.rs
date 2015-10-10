@@ -38,7 +38,7 @@ macro_rules! make_hamt_type {
         use std::hash::{Hash, Hasher};
         use std::hash::SipHasher;
         use std::borrow::Borrow;
-        use std::ops::Deref;
+        use std::ops::{Deref, Index};
         use std::slice;
         use super::internal::{
             Bitmap, HashBits, Shift, BITS_PER_SUBKEY, FULL_NODE_MASK, index, mask,
@@ -232,7 +232,15 @@ macro_rules! make_hamt_type {
                 self.iter()
             }
         }
-        
+
+        impl<'a, K, Q: ?Sized, V> Index<&'a Q> for $hamt<K, V>
+            where K: Hash + Eq + Clone + Borrow<Q>, V: Clone, Q: Eq + Hash {
+            type Output = V;
+            fn index(&self, index: &Q) -> &Self::Output {
+                self.get(index).expect("key not in hamt")
+            }
+        }
+
         impl<K, V> $hamt<K, V> where K: Hash + Eq + Clone, V: Clone {
             /// Creates an empty map.
             pub fn new() -> Self {
@@ -269,6 +277,22 @@ macro_rules! make_hamt_type {
                     },
                     None => {
                         vs_prime.push((k, v));
+                    }
+                }
+                $hamt {
+                    inline: Inline::Alt($rc_new(Alt::Collision(h, vs_prime)))
+                }
+            }
+
+            fn collision_adjust<F>(h: HashBits, key: K, f: F, vs: &[(K, V)]) -> Self
+                where F: FnOnce(&V) -> V {
+                let mut vs_prime = vs.clone().to_vec();
+                match vs.iter().position(|ref i| &i.0 == &key) {
+                    Some(idx) => {
+                        vs_prime[idx] = (key, f(&vs_prime[idx].1));
+                    },
+                    _ => {
+                        ;
                     }
                 }
                 $hamt {
@@ -612,6 +636,76 @@ macro_rules! make_hamt_type {
                             self.clone()
                         }
                     }
+                }
+            }
+
+            /// Modifies the value tied to the given key with the function `f`. Otherwise, the map returned is identical.
+            pub fn adjust<F>(&self, key: K, f: F) -> Self
+                where F: FnOnce(&V) -> V {
+                let mut sh = SipHasher::new();
+                key.hash(&mut sh);
+                let h = sh.finish();
+                self.adjust_recur(h, key, 0, f)
+            }
+
+            fn adjust_recur<F>(&self, h: HashBits, key: K, s: Shift, f: F) -> Self
+                where F: FnOnce(&V) -> V {
+                match self.inline {
+                    Inline::Empty => self.clone(),
+                    Inline::Leaf(lh, ref lk, ref lv) => {
+                        if h == lh && &key == lk {
+                            $hamt::leaf(h, lk.clone(), f(&lv))
+                        } else {
+                            self.clone()
+                        }
+                    },
+                    Inline::Alt(ref rc) => match *rc.deref() {
+                        Alt::Bitmap(_, b, ref vs) => {
+                            let m = mask(h, s);
+                            let i = sparse_index(b, m);
+                            if b & m == 0 {
+                                self.clone()
+                            } else {
+                                let st = &vs[i];
+                                let st_prime = st.adjust_recur(h, key, s + BITS_PER_SUBKEY, f);
+                                let mut vs_prime = vs.clone();
+                                vs_prime[i] = st_prime;
+                                $hamt::bitmap(b, vs_prime)
+                            }
+                        },
+                        Alt::Full(_, ref vs) => {
+                            let i = index(h, s);
+                            let st = &vs[i];
+                            let st_prime = st.adjust_recur(h, key, s + BITS_PER_SUBKEY, f);
+                            let mut vs_prime = vs.clone();
+                            vs_prime[i] = st_prime;
+                            $hamt::full(vs_prime)
+                        },
+                        Alt::Collision(_, ref vs) => {
+                            $hamt::collision_adjust(h, key, f, vs)
+                        }
+                    }
+                }
+            }
+
+            /// Updates the value at the given key using `f`. If `f` returns None, then the entry
+            /// is removed.
+            pub fn update<F>(&self, key: K, f: F) -> Self where F: FnOnce(&V) -> Option<V> {
+                match self.get(&key) {
+                    Some(ref value) => match f(value) {
+                        Some(value_prime) => self.insert(key, value_prime),
+                        None => self.remove(&key)
+                    },
+                    None => self.clone()
+                }
+            }
+
+            /// Updates the value at the given key using `f` as in `Self::update`. If no value exists for
+            /// the given key, then `f` is passed `None`.
+            pub fn alter<F>(&self, key: K, f: F) -> Self where F: FnOnce(Option<&V>) -> Option<V> {
+                match f(self.get(&key)) {
+                    Some(value) => self.insert(key, value),
+                    None => self.remove(&key)
                 }
             }
         }
