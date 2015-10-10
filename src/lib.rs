@@ -89,22 +89,20 @@ macro_rules! make_hamt_type {
         impl<K, V> PartialEq for $hamt<K, V> where K: PartialEq, V: PartialEq {
             fn eq(&self, other: &$hamt<K, V>) -> bool {
                 match (&self.inline, &other.inline) {
-                    (&Inline::Empty, &Inline::Empty) => { return true; },
+                    (&Inline::Empty, &Inline::Empty) => true,
                     (&Inline::Leaf(h1, ref k1, ref v1), &Inline::Leaf(h2, ref k2, ref v2)) => {
-                        return h1 == h2 && k1 == k2 && v1 == v2;
+                        h1 == h2 && k1 == k2 && v1 == v2
                     }
                     (&Inline::Alt(ref rc1), &Inline::Alt(ref rc2)) => {
                         let ptr1: *const Alt<K, V> = rc1.deref();
                         let ptr2: *const Alt<K, V> = rc2.deref();
                         if ptr1 == ptr2 {
-                            return true; // don't have to check shared structure
+                            true // don't have to check shared structure
                         } else {
-                            return rc1.deref() == rc2.deref();
+                            rc1.deref() == rc2.deref()
                         }
                     }
-                    (_, _) => {
-                        return false;
-                    }
+                    (_, _) => false
                 }
             }
         }
@@ -121,7 +119,7 @@ macro_rules! make_hamt_type {
                     Traversing::Leaf(k, v) => {
                         self.stack.pop();
                         self.count += 1;
-                        return Option::Some((k, v));
+                        Option::Some((k, v))
                     },
                     Traversing::BitmapOrFull(mut iter) => {
                         let next = iter.next();
@@ -130,30 +128,30 @@ macro_rules! make_hamt_type {
                         match next {
                             Option::Some(ref hamt) => match hamt.inline {
                                 Inline::Empty => {
-                                    return self.next();
+                                    self.next()
                                 },
                                 Inline::Leaf(_, ref k, ref v) => {
                                     self.count += 1;
-                                    return Option::Some((k, v));
+                                    Option::Some((k, v))
                                 },
-                                Inline::Alt(ref rc) => match rc.deref() {
-                                    &Alt::Bitmap(_, _, ref vs) => {
+                                Inline::Alt(ref rc) => match *rc.deref() {
+                                    Alt::Bitmap(_, _, ref vs) => {
                                         self.stack.push(Traversing::BitmapOrFull(vs.iter()));
-                                        return self.next();
+                                        self.next()
                                     },
-                                    &Alt::Full(_, ref vs) => {
+                                    Alt::Full(_, ref vs) => {
                                         self.stack.push(Traversing::BitmapOrFull(vs.iter()));
-                                        return self.next();
+                                        self.next()
                                     },
-                                    &Alt::Collision(_, ref vs) => {
+                                    Alt::Collision(_, ref vs) => {
                                         self.stack.push(Traversing::Collision(vs.iter()));
-                                        return self.next();
+                                        self.next()
                                     }
                                 }
                             },
                             Option::None => {
                                 self.stack.pop();
-                                return self.next();
+                                self.next()
                             }
                         }
                     },
@@ -162,11 +160,11 @@ macro_rules! make_hamt_type {
                             self.count += 1;
                             self.stack.pop();
                             self.stack.push(Traversing::Collision(iter));
-                            return Option::Some((&kv.0, &kv.1));
+                            Option::Some((&kv.0, &kv.1))
                         },
                         Option::None => {
                             self.stack.pop();
-                            return self.next();
+                            self.next()
                         }
                     }
                 }
@@ -271,14 +269,14 @@ macro_rules! make_hamt_type {
                 let bp2 = mask(h0, s);
                 if bp1 == bp2 {
                     let st = $hamt::two(h, s + BITS_PER_SUBKEY, k, v, h0, k0, v0);
-                    return $hamt::bitmap(bp1, vec![st]);
+                    $hamt::bitmap(bp1, vec![st])
                 } else {
                     let l1 = $hamt::leaf(h, k, v);
                     let l2 = $hamt::leaf(h0, k0.clone(), v0.clone());
                     if index(h, s) < index(h0, s) {
-                        return $hamt::bitmap(bp1 | bp2, vec![l1, l2]);
+                        $hamt::bitmap(bp1 | bp2, vec![l1, l2])
                     } else {
-                        return $hamt::bitmap(bp1 | bp2, vec![l2, l1]);
+                        $hamt::bitmap(bp1 | bp2, vec![l2, l1])
                     }
                 }
             }
@@ -286,8 +284,8 @@ macro_rules! make_hamt_type {
             fn is_leaf_or_collision(&self) -> bool {
                 match self.inline {
                     Inline::Leaf(_, _, _) => true,
-                    Inline::Alt(ref rc) => match rc.deref() {
-                        &Alt::Collision(_, _) => true,
+                    Inline::Alt(ref rc) => match *rc.deref() {
+                        Alt::Collision(_, _) => true,
                         _ => false
                     },
                     _ => false
@@ -299,31 +297,31 @@ macro_rules! make_hamt_type {
                 match self.inline {
                     Inline::Empty => 0,
                     Inline::Leaf(_, _, _) => 1,
-                    Inline::Alt(ref rc) => match rc.deref() {
-                        &Alt::Bitmap(size, _, _) => size,
-                        &Alt::Full(size, _) => size,
-                        &Alt::Collision(_, ref vs) => vs.len()
+                    Inline::Alt(ref rc) => match *rc.deref() {
+                        Alt::Bitmap(size, _, _) => size,
+                        Alt::Full(size, _) => size,
+                        Alt::Collision(_, ref vs) => vs.len()
                     }
                 }
             }
 
             /// Returns true if there are no key value pairs in the map, false otherwise.
             pub fn is_empty(&self) -> bool {
-                return self.len() == 0
+                self.len() == 0
             }
 
             /// Returns a key value iterator.
-            pub fn iter<'a>(&'a self) -> Iter<'a, K, V> {
+            pub fn iter(&self) -> Iter<K, V> {
                 Iter {
                     size: self.len(),
                     count: 0,
                     stack: match self.inline {
                         Inline::Empty => vec![],
                         Inline::Leaf(_, ref k, ref v) => vec![Traversing::Leaf(k, v)],
-                        Inline::Alt(ref rc) => match rc.deref() {
-                            &Alt::Bitmap(_, _, ref vs) => vec![Traversing::BitmapOrFull(vs.iter())],
-                            &Alt::Full(_, ref vs) => vec![Traversing::BitmapOrFull(vs.iter())],
-                            &Alt::Collision(_, ref vs) => vec![Traversing::Collision(vs.iter())]
+                        Inline::Alt(ref rc) => match *rc.deref() {
+                            Alt::Bitmap(_, _, ref vs) => vec![Traversing::BitmapOrFull(vs.iter())],
+                            Alt::Full(_, ref vs) => vec![Traversing::BitmapOrFull(vs.iter())],
+                            Alt::Collision(_, ref vs) => vec![Traversing::Collision(vs.iter())]
                         }
                     }
                 }
@@ -351,8 +349,8 @@ macro_rules! make_hamt_type {
                                 return Option::None;
                             }
                         },
-                        Inline::Alt(ref rc) => match rc.deref() {
-                            &Alt::Bitmap(_, b, ref vs) => {
+                        Inline::Alt(ref rc) => match *rc.deref() {
+                            Alt::Bitmap(_, b, ref vs) => {
                                 let m = mask(h, shift);
                                 if b & m == 0 {
                                     return Option::None;
@@ -362,12 +360,12 @@ macro_rules! make_hamt_type {
                                     continue;
                                 }
                             },
-                            &Alt::Full(_, ref vs) => {
+                            Alt::Full(_, ref vs) => {
                                 hamt = &vs[index(h, shift)];
                                 shift += BITS_PER_SUBKEY;
                                 continue;
                             },
-                            &Alt::Collision(hx, ref vs) => {
+                            Alt::Collision(hx, ref vs) => {
                                 if h == hx {
                                     for kv in vs {
                                         if k == kv.0.borrow() {
@@ -395,55 +393,55 @@ macro_rules! make_hamt_type {
                 let mut sh = SipHasher::new();
                 k.hash(&mut sh);
                 let h = sh.finish();
-                return self.insert_recur(h, k, v, 0);
+                self.insert_recur(h, k, v, 0)
             }
 
             fn insert_recur(&self, h: HashBits, k: K, v: V, s: Shift) -> Self {
                 match self.inline {
                     Inline::Empty => {
-                        return $hamt::leaf(h, k, v);
+                        $hamt::leaf(h, k, v)
                     },
                     Inline::Leaf(h0, ref k0, ref v0) => {
                         if h == h0 {
                             if &k == k0 {
-                                return $hamt::leaf(h, k, v);
+                                $hamt::leaf(h, k, v)
                             } else {
-                                return $hamt::collision(h, k, v, k0, v0);
+                                $hamt::collision(h, k, v, k0, v0)
                             }
                         } else {
-                            return $hamt::two(h, s, k, v, h0, k0, v0);
+                            $hamt::two(h, s, k, v, h0, k0, v0)
                         }
                     },
-                    Inline::Alt(ref rc) => match rc.deref() {
-                        &Alt::Bitmap(_, b, ref vs) => {
+                    Inline::Alt(ref rc) => match *rc.deref() {
+                        Alt::Bitmap(_, b, ref vs) => {
                             let m = mask(h, s);
                             let i = sparse_index(b, m);
                             if b & m == 0 {
                                 let mut vs_prime: Vec<$hamt<K,V>> = (*vs).clone();
                                 vs_prime.insert(i, $hamt::leaf(h, k, v));
-                                return $hamt::bitmap_indexed_or_full(b | m, vs_prime);
+                                $hamt::bitmap_indexed_or_full(b | m, vs_prime)
                             } else {
-                                let ref st = vs[i];
+                                let st = &vs[i];
                                 let new_t = st.insert_recur(h, k, v, s + BITS_PER_SUBKEY);
                                 let mut vs_prime: Vec<$hamt<K,V>> = (*vs).clone();
                                 vs_prime[i] = new_t;
-                                return $hamt::bitmap(b, vs_prime);
+                                $hamt::bitmap(b, vs_prime)
                             }
                         },
-                        &Alt::Full(_, ref vs) => {
+                        Alt::Full(_, ref vs) => {
                             let i = index(h, s);
-                            let ref st = vs[i];
+                            let st = &vs[i];
                             let new_t = st.insert_recur(h, k, v, s + BITS_PER_SUBKEY);
                             let mut new_vs: Vec<$hamt<K,V>> = (*vs).clone();
                             new_vs[i] = new_t;
-                            return $hamt::full(new_vs);
+                            $hamt::full(new_vs)
                         },
-                        &Alt::Collision(hx, ref vs) => {
+                        Alt::Collision(hx, ref vs) => {
                             if h == hx {
-                                return $hamt::collision_update(h, k, v, vs);
+                                $hamt::collision_update(h, k, v, vs)
                             } else {
                                 let bi = $hamt::bitmap(mask(hx, s), vec![self.clone()]);
-                                return bi.insert_recur(h, k, v, s);
+                                bi.insert_recur(h, k, v, s)
                             }
                         }
                     }
@@ -457,7 +455,7 @@ macro_rules! make_hamt_type {
                 let mut sh = SipHasher::new();
                 k.hash(&mut sh);
                 let h = sh.finish();
-                return self.remove_recur(h, k, 0);
+                self.remove_recur(h, k, 0)
             }
 
             fn remove_recur<Q: ?Sized>(&self, h: HashBits, k: &Q, s: Shift) -> Self
@@ -465,17 +463,17 @@ macro_rules! make_hamt_type {
             {
                 match self.inline {
                     Inline::Empty => {
-                        return $hamt::new();
+                        $hamt::new()
                     },
                     Inline::Leaf(h0, ref k0, _) => {
                         if h == h0 && k == k0.borrow() {
-                            return $hamt::new();
+                            $hamt::new()
                         } else {
-                            return self.clone();
+                            self.clone()
                         }
                     },
-                    Inline::Alt(ref rc) => match rc.deref() {
-                        &Alt::Bitmap(_, b, ref vs) => {
+                    Inline::Alt(ref rc) => match *rc.deref() {
+                        Alt::Bitmap(_, b, ref vs) => {
                             let m = mask(h, s);
                             let i = sparse_index(b, m);
                             if b & m == 0 {
@@ -486,7 +484,7 @@ macro_rules! make_hamt_type {
                             match st_prime.inline {
                                 Inline::Empty => match vs.len() {
                                     1 => {
-                                        return $hamt::new();
+                                        $hamt::new()
                                     },
                                     2 => {
                                         match (i, &vs[0], &vs[1]) {
@@ -496,7 +494,7 @@ macro_rules! make_hamt_type {
                                                 }
                                                 let mut vs_prime = vs.clone();
                                                 vs_prime.remove(i);
-                                                return $hamt::bitmap(b & (!m), vs_prime);
+                                                $hamt::bitmap(b & (!m), vs_prime)
                                             },
                                             (1, l, _) => {
                                                 if l.is_leaf_or_collision() {
@@ -504,19 +502,19 @@ macro_rules! make_hamt_type {
                                                 }
                                                 let mut vs_prime = vs.clone();
                                                 vs_prime.remove(i);
-                                                return $hamt::bitmap(b & (!m), vs_prime);
+                                                $hamt::bitmap(b & (!m), vs_prime)
                                             },
                                             _ => {
                                                 let mut vs_prime = vs.clone();
                                                 vs_prime.remove(i);
-                                                return $hamt::bitmap(b & (!m), vs_prime);
+                                                $hamt::bitmap(b & (!m), vs_prime)
                                             }
                                         }
                                     },
                                     _ => {
                                         let mut vs_prime = vs.clone();
                                         vs_prime.remove(i);
-                                        return $hamt::bitmap(b & (!m), vs_prime);
+                                        $hamt::bitmap(b & (!m), vs_prime)
                                     }
                                 },
                                 _ => {
@@ -525,11 +523,11 @@ macro_rules! make_hamt_type {
                                     }
                                     let mut vs_prime = vs.clone();
                                     vs_prime[i] = st_prime;
-                                    return $hamt::bitmap(b, vs_prime);
+                                    $hamt::bitmap(b, vs_prime)
                                 }
                             }
                         },
-                        &Alt::Full(_, ref vs) => {
+                        Alt::Full(_, ref vs) => {
                             let i = index(h, s);
                             let st = &vs[i];
                             let st_prime = st.remove_recur(h, k, s + BITS_PER_SUBKEY);
@@ -538,16 +536,16 @@ macro_rules! make_hamt_type {
                                     let mut vs_prime = vs.clone();
                                     vs_prime.remove(i);
                                     let bm = FULL_NODE_MASK & !(1 << i);
-                                    return $hamt::bitmap(bm, vs_prime);
+                                    $hamt::bitmap(bm, vs_prime)
                                 }
                                 _ => {
                                     let mut vs_prime = vs.clone();
                                     vs_prime[i] = st_prime;
-                                    return $hamt::full(vs_prime);
+                                    $hamt::full(vs_prime)
                                 }
                             }
                         }
-                        &Alt::Collision(hx, ref vs) => {
+                        Alt::Collision(hx, ref vs) => {
                             if h == hx {
                                 match vs.iter().position(|ref i| i.0.borrow() == k) {
                                     Option::Some(i) => {
@@ -564,7 +562,7 @@ macro_rules! make_hamt_type {
                                     _ => { return self.clone(); }
                                 }
                             }
-                            return self.clone();
+                            self.clone()
                         }
                     }
                 }

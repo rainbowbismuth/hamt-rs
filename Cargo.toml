@@ -2,7 +2,7 @@
 name = "hamt"
 description = "Purely functional hash array mapped tries."
 homepage = "https://github.com/rainbowbismuth/hamt-rs"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Emily A. Bellows <emily.a.bellows@gmail.com>"]
 readme = "README.md"
 license = "MIT"
