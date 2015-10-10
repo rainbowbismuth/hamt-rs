@@ -1,6 +1,8 @@
 # hamt
 :construction: This library is under construction! :construction:
 
+[![Build Status](https://travis-ci.org/rainbowbismuth/hamt-rs.svg?branch=master)](https://travis-ci.org/rainbowbismuth/hamt-rs)
+
 An implementation of a persistent hash array mapped trie in Rust, based on those found in the [unordered-containers](https://github.com/tibbe/unordered-containers) Haskell library.
 
 There are two versions of the data structure, HamtRc which is limited to a single thread, and HamtArc which can be freely shared.
@@ -18,6 +20,5 @@ assert!(hamt.get(&1) == Option::Some(&10));
 Unknown :space_invader:.
 
 # Planned features
-* Iterators,
 * Data.HashSet equivalent,
 * Useful functions like insertWith, adjust, union, difference, intersection.
