@@ -284,12 +284,12 @@ macro_rules! make_hamt_type {
                 }
             }
 
-            fn collision_adjust<F>(h: HashBits, key: K, f: F, vs: &[(K, V)]) -> Self
-                where F: FnOnce(&V) -> V {
+            fn collision_adjust<F, Q: ?Sized>(h: HashBits, key: &Q, f: F, vs: &[(K, V)]) -> Self
+                where F: FnOnce(&V) -> V, K: Borrow<Q>, Q: Hash + Eq {
                 let mut vs_prime = vs.clone().to_vec();
-                match vs.iter().position(|ref i| &i.0 == &key) {
+                match vs.iter().position(|ref i| i.0.borrow() == key) {
                     Some(idx) => {
-                        vs_prime[idx] = (key, f(&vs_prime[idx].1));
+                        vs_prime[idx].1 = f(&vs_prime[idx].1);
                     },
                     _ => {
                         ;
@@ -640,20 +640,20 @@ macro_rules! make_hamt_type {
             }
 
             /// Modifies the value tied to the given key with the function `f`. Otherwise, the map returned is identical.
-            pub fn adjust<F>(&self, key: K, f: F) -> Self
-                where F: FnOnce(&V) -> V {
+            pub fn adjust<F, Q: ?Sized>(&self, key: &Q, f: F) -> Self
+                where F: FnOnce(&V) -> V, K: Borrow<Q>, Q: Hash + Eq {
                 let mut sh = SipHasher::new();
                 key.hash(&mut sh);
                 let h = sh.finish();
                 self.adjust_recur(h, key, 0, f)
             }
 
-            fn adjust_recur<F>(&self, h: HashBits, key: K, s: Shift, f: F) -> Self
-                where F: FnOnce(&V) -> V {
+            fn adjust_recur<F, Q: ?Sized>(&self, h: HashBits, key: &Q, s: Shift, f: F) -> Self
+                where F: FnOnce(&V) -> V, K: Borrow<Q>, Q: Hash + Eq {
                 match self.inline {
                     Inline::Empty => self.clone(),
                     Inline::Leaf(lh, ref lk, ref lv) => {
-                        if h == lh && &key == lk {
+                        if h == lh && key == lk.borrow() {
                             $hamt::leaf(h, lk.clone(), f(&lv))
                         } else {
                             self.clone()
@@ -690,11 +690,12 @@ macro_rules! make_hamt_type {
 
             /// Updates the value at the given key using `f`. If `f` returns None, then the entry
             /// is removed.
-            pub fn update<F>(&self, key: K, f: F) -> Self where F: FnOnce(&V) -> Option<V> {
-                match self.get(&key) {
+            pub fn update<F, Q: ?Sized>(&self, key: &Q, f: F) -> Self
+                where F: FnOnce(&V) -> Option<V>, K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K> {
+                match self.get(key) {
                     Some(ref value) => match f(value) {
-                        Some(value_prime) => self.insert(key, value_prime),
-                        None => self.remove(&key)
+                        Some(value_prime) => self.insert(key.to_owned(), value_prime),
+                        None => self.remove(key)
                     },
                     None => self.clone()
                 }
@@ -702,10 +703,13 @@ macro_rules! make_hamt_type {
 
             /// Updates the value at the given key using `f` as in `Self::update`. If no value exists for
             /// the given key, then `f` is passed `None`.
-            pub fn alter<F>(&self, key: K, f: F) -> Self where F: FnOnce(Option<&V>) -> Option<V> {
-                match f(self.get(&key)) {
-                    Some(value) => self.insert(key, value),
-                    None => self.remove(&key)
+            pub fn alter<F, Q: ?Sized>(&self, key: &Q, f: F) -> Self
+                where F: FnOnce(Option<&V>) -> Option<V>, K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K> {
+                match f(self.get(key)) {
+                    Some(value) => {
+                        self.insert(key.to_owned(), value)
+                    },
+                    None => self.remove(key)
                 }
             }
         }
