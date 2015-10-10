@@ -51,7 +51,7 @@ fn simulation_testing(v: Commands) -> bool {
     for cmd in v.cmds {
         match cmd {
             Command::Insert(k, v) => {
-                hamt = hamt.insert(k, v);
+                hamt = hamt.insert(&k, &v);
                 hashmap.insert(k, v);
 
                 if hamt.contains_key(&k) != hashmap.contains_key(&k) {

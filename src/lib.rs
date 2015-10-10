@@ -214,13 +214,13 @@ macro_rules! make_hamt_type {
 
         impl<K, V> FromIterator<(K, V)> for $hamt<K, V> where K: Eq + Hash + Clone, V: Clone{
             fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=(K, V)> {
-                iterator.into_iter().fold($hamt::new(), |x, kv| x.insert(kv.0, kv.1))
+                iterator.into_iter().fold($hamt::new(), |x, kv| x.insert(&kv.0, &kv.1))
             }
         }
 
         impl<'a, K, V> FromIterator<(&'a K, &'a V)> for $hamt<K, V> where K: Eq + Hash + Clone, V: Clone{
             fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=(&'a K, &'a V)> {
-                iterator.into_iter().fold($hamt::new(), |x, kv| x.insert(kv.0.clone(), kv.1.clone()))
+                iterator.into_iter().fold($hamt::new(), |x, kv| x.insert(kv.0, kv.1))
             }
         }
 
@@ -269,14 +269,15 @@ macro_rules! make_hamt_type {
                 }
             }
 
-            fn collision_update(h: HashBits, k: K, v: V, vs: &[(K, V)]) -> Self {
+            fn collision_update<Q: ?Sized>(h: HashBits, k: &Q, v: V, vs: &[(K, V)]) -> Self
+                where K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K> {
                 let mut vs_prime = vs.clone().to_vec();
-                match vs.iter().position(|ref i| &i.0 == &k) {
+                match vs.iter().position(|ref i| i.0.borrow() == k) {
                     Some(idx) => {
-                        vs_prime[idx] = (k, v);
+                        vs_prime[idx].1 = v;
                     },
                     None => {
-                        vs_prime.push((k, v));
+                        vs_prime.push((k.to_owned(), v));
                     }
                 }
                 $hamt {
@@ -458,29 +459,33 @@ macro_rules! make_hamt_type {
                 self.get(k).is_some()
             }
 
+            // TODO: Upgrade API to use refs and ToOwned everywhere.
             /// Returns a new map that includes the given key value pair, replacing the old value
             /// if the key was already in the map.
-            pub fn insert(&self, k: K, v: V) -> Self {
+            pub fn insert<Q: ?Sized, R: ?Sized>(&self, k: &Q, v: &R) -> Self
+                where K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K>,
+                      V: Borrow<R>, R: ToOwned<Owned=V>  {
                 let mut sh = SipHasher::new();
                 k.hash(&mut sh);
                 let h = sh.finish();
-                self.insert_recur(h, k, v, 0)
+                self.insert_recur(h, k, v.to_owned(), 0)
             }
 
-            fn insert_recur(&self, h: HashBits, k: K, v: V, s: Shift) -> Self {
+            fn insert_recur<Q: ?Sized>(&self, h: HashBits, k: &Q, v: V, s: Shift) -> Self
+                where K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K> {
                 match self.inline {
                     Inline::Empty => {
-                        $hamt::leaf(h, k, v)
+                        $hamt::leaf(h, k.to_owned(), v)
                     },
                     Inline::Leaf(h0, ref k0, ref v0) => {
                         if h == h0 {
-                            if &k == k0 {
-                                $hamt::leaf(h, k, v)
+                            if k == k0.borrow() {
+                                $hamt::leaf(h, k.to_owned(), v)
                             } else {
-                                $hamt::collision(h, k, v, k0, v0)
+                                $hamt::collision(h, k.to_owned(), v, k0, v0)
                             }
                         } else {
-                            $hamt::two(h, s, k, v, h0, k0, v0)
+                            $hamt::two(h, s, k.to_owned(), v, h0, k0, v0)
                         }
                     },
                     Inline::Alt(ref rc) => match *rc.deref() {
@@ -489,7 +494,7 @@ macro_rules! make_hamt_type {
                             let i = sparse_index(b, m);
                             if b & m == 0 {
                                 let mut vs_prime: Vec<$hamt<K,V>> = (*vs).clone();
-                                vs_prime.insert(i, $hamt::leaf(h, k, v));
+                                vs_prime.insert(i, $hamt::leaf(h, k.to_owned(), v));
                                 $hamt::bitmap_indexed_or_full(b | m, vs_prime)
                             } else {
                                 let st = &vs[i];
@@ -694,7 +699,7 @@ macro_rules! make_hamt_type {
                 where F: FnOnce(&V) -> Option<V>, K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K> {
                 match self.get(key) {
                     Some(ref value) => match f(value) {
-                        Some(value_prime) => self.insert(key.to_owned(), value_prime),
+                        Some(value_prime) => self.insert(key, &value_prime),
                         None => self.remove(key)
                     },
                     None => self.clone()
@@ -707,7 +712,7 @@ macro_rules! make_hamt_type {
                 where F: FnOnce(Option<&V>) -> Option<V>, K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K> {
                 match f(self.get(key)) {
                     Some(value) => {
-                        self.insert(key.to_owned(), value)
+                        self.insert(key, &value)
                     },
                     None => self.remove(key)
                 }

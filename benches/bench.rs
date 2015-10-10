@@ -9,7 +9,7 @@ use hamt::HamtRc;
 #[bench]
 fn bench_add_one_hundred_keys_hamtrc(b: &mut Bencher) {
     b.iter(|| {
-        (0..100).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(x, x));
+        (0..100).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(&x, &x));
     })
 }
 
@@ -25,7 +25,7 @@ fn bench_add_one_hundred_keys_hashmap(b: &mut Bencher) {
 
 #[bench]
 fn bench_look_up_one_hundred_keys_hamtrc(b: &mut Bencher) {
-    let hamt = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(x, x));
+    let hamt = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(&x, &x));
     b.iter(|| {
         for i in 400..500 {
             assert!(hamt.get(&i).is_some());
@@ -48,7 +48,7 @@ fn bench_look_up_one_hundred_keys_hashmap(b: &mut Bencher) {
 
 #[bench]
 fn bench_remove_one_hundred_keys_hamtrc(b: &mut Bencher) {
-    let hamt_orig = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(x, x));
+    let hamt_orig = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(&x, &x));
     b.iter(|| {
         let mut hamt = hamt_orig.clone();
         for i in 400..500 {
@@ -74,7 +74,7 @@ fn bench_remove_one_hundred_keys_hashmap(b: &mut Bencher) {
 
 #[bench]
 fn bench_iterate_hamtrc(b: &mut Bencher) {
-    let hamt = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(x, x));
+    let hamt = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(&x, &x));
     let mut count = 0;
 
     b.iter(|| {

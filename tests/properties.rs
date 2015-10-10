@@ -16,22 +16,22 @@ impl Arbitrary for Hamt {
         let length: usize = Arbitrary::arbitrary(g);
         for _ in 0..max(length, 2048) {
             let kv: (isize, isize) = Arbitrary::arbitrary(g);
-            hamt = hamt.insert(kv.0, kv.1);
+            hamt = hamt.insert(&kv.0, &kv.1);
         }
         return Hamt { unwrap: hamt };
     }
 }
 
 fn prop_insert_then_get(hamt: Hamt, key: isize, value: isize) -> bool {
-    hamt.unwrap.insert(key, value).get(&key) == Option::Some(&value)
+    hamt.unwrap.insert(&key, &value).get(&key) == Option::Some(&value)
 }
 
 fn prop_insert_then_remove(hamt: Hamt, key: isize) -> bool {
-    hamt.unwrap.insert(key, 0).remove(&key).contains_key(&key) == false
+    hamt.unwrap.insert(&key, &0).remove(&key).contains_key(&key) == false
 }
 
 fn prop_insert_then_remove_length_check(hamt: Hamt, key: isize) -> bool {
-    let hamt_with_key = hamt.unwrap.insert(key, 0);
+    let hamt_with_key = hamt.unwrap.insert(&key, &0);
     let hamt_without_key = hamt_with_key.remove(&key);
     hamt_with_key.len() == hamt_without_key.len() + 1
 }
