@@ -2,6 +2,8 @@
 name = "hamt"
 description = "Purely functional hash array mapped tries."
 homepage = "https://github.com/rainbowbismuth/hamt-rs"
+repository = "https://github.com/rainbowbismuth/hamt-rs"
+documentation = "http://rainbowbismuth.github.io/rustdoc/hamt/"
 version = "0.1.4"
 authors = ["Emily A. Bellows <emily.a.bellows@gmail.com>"]
 readme = "README.md"
