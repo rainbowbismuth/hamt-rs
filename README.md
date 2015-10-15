@@ -3,6 +3,8 @@
 
 [![Build Status](https://travis-ci.org/rainbowbismuth/hamt-rs.svg?branch=master)](https://travis-ci.org/rainbowbismuth/hamt-rs)
 
+[Documentation](http://rainbowbismuth.github.io/rustdoc/hamt/)
+
 An implementation of a persistent hash array mapped trie in Rust, based on those found in the [unordered-containers](https://github.com/tibbe/unordered-containers) Haskell library.
 
 There are four versions of the data structure, HamtRc which is limited to a single thread, and HamtArc which can be freely shared. As well as set versions, HamtSetRc and HamtSetArc.
