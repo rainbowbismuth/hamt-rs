@@ -587,27 +587,32 @@ macro_rules! make_hamt_type {
                                         $hamt::new()
                                     },
                                     2 => {
+                                        let remove = || {
+                                            let mut vs_prime = Vec::with_capacity(vs.len() - 1);
+                                            for (idx, v) in vs.iter().enumerate() {
+                                                if idx != i {
+                                                    vs_prime.push(v.clone());
+                                                }
+                                            }
+                                            $hamt::bitmap(b & (!m), vs_prime)
+                                        };
                                         match (i, &vs[0], &vs[1]) {
                                             (0, _, l) => {
                                                 if l.is_leaf_or_collision() {
-                                                    return l.clone();
+                                                    l.clone()
+                                                } else {
+                                                    remove()
                                                 }
-                                                let mut vs_prime = vs.clone();
-                                                vs_prime.remove(i);
-                                                $hamt::bitmap(b & (!m), vs_prime)
                                             },
                                             (1, l, _) => {
                                                 if l.is_leaf_or_collision() {
-                                                    return l.clone();
+                                                    l.clone()
+                                                } else {
+                                                    remove()
                                                 }
-                                                let mut vs_prime = vs.clone();
-                                                vs_prime.remove(i);
-                                                $hamt::bitmap(b & (!m), vs_prime)
                                             },
                                             _ => {
-                                                let mut vs_prime = vs.clone();
-                                                vs_prime.remove(i);
-                                                $hamt::bitmap(b & (!m), vs_prime)
+                                                remove()
                                             }
                                         }
                                     },
