@@ -14,7 +14,7 @@ mod internal {
     pub type Shift = u64;
 
     pub const BITS_PER_SUBKEY: u64 = 4;
-    //const MAX_CHILDREN: u64 = 16;
+    // const MAX_CHILDREN: u64 = 16;
     pub const SUBKEY_MASK: Bitmap = 15;
     pub const FULL_NODE_MASK: Bitmap = 65535;
 
@@ -31,16 +31,16 @@ mod internal {
     }
 }
 
-//TODO: Try adding something like this for collision & two.
+// TODO: Try adding something like this for collision & two.
 // enum SmallVec<T> {
 //     One(T),
 //     Two(T, T),
 //     Big(Vec<T>)
 // }
 
-//TODO: Then it might be interesting to remove Leaf and turn it and Collision into 'Leaves'
-//TODO: Full could be an array with known size.
-//TODO: Try to mutate in place with Rc/Arc.get_mut().
+// TODO: Then it might be interesting to remove Leaf and turn it and Collision into 'Leaves'
+// TODO: Full could be an array with known size.
+// TODO: Try to mutate in place with Rc/Arc.get_mut().
 
 macro_rules! make_hamt_type {
     ($hamt:ident, $rc:ty, $rc_new:path, $rc_alt:ty) => {
@@ -54,12 +54,12 @@ macro_rules! make_hamt_type {
             Bitmap, HashBits, Shift, BITS_PER_SUBKEY, FULL_NODE_MASK, index, mask,
             sparse_index};
 
-        /// A persistent hash array mapped trie implementation using reference counting.
-        ///
-        /// Keys are required to implement `Hash` and `Eq` like `std::collections::HashMap`, but
-        /// both keys and values are also required to implement `Clone`. If you have an expensive
-        /// to clone key or value type like a `String` or `Vec`, you can wrap it in a reference
-        /// counting smart pointer.
+/// A persistent hash array mapped trie implementation using reference counting.
+///
+/// Keys are required to implement `Hash` and `Eq` like `std::collections::HashMap`, but
+/// both keys and values are also required to implement `Clone`. If you have an expensive
+/// to clone key or value type like a `String` or `Vec`, you can wrap it in a reference
+/// counting smart pointer.
 
         #[derive(Clone, Debug)]
         pub struct $hamt<K, V> {
@@ -101,7 +101,7 @@ macro_rules! make_hamt_type {
             iter: Map<Iter<'a, K, V>, fn((&'a K, &'a V)) -> &'a K>
         }
 
-        /// Value iterator
+/// Value iterator
         #[derive(Clone)]
         pub struct Values<'a, K, V> where K: 'a, V: 'a {
             iter: Map<Iter<'a, K, V>, fn((&'a K, &'a V)) -> &'a V>

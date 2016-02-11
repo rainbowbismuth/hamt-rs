@@ -32,7 +32,10 @@ impl Arbitrary for Commands {
             let val: isize = Arbitrary::arbitrary(g);
             if !seen.contains(&key) {
                 seen.insert(key);
-                cmds.push(Command {key: key, val: val});
+                cmds.push(Command {
+                    key: key,
+                    val: val,
+                });
             }
         }
         Commands { cmds: cmds }
