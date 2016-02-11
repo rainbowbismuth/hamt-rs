@@ -55,8 +55,8 @@ fn bench_look_up_one_hundred_keys_hashmap(b: &mut Bencher) {
 #[bench]
 fn bench_remove_one_hundred_keys_hamtrc(b: &mut Bencher) {
     let hamt_orig = (0..1000).fold(HamtRc::<isize, isize>::new(), |acc, x| acc.insert(&x, &x));
+    let mut hamt = hamt_orig.clone();
     b.iter(|| {
-        let mut hamt = hamt_orig.clone();
         for i in 400..500 {
             hamt = hamt.remove(&i);
         }
@@ -69,9 +69,8 @@ fn bench_remove_one_hundred_keys_hashmap(b: &mut Bencher) {
     for i in 0..1000 {
         hashmap_orig.insert(i, i);
     }
-
+    let mut hashmap = hashmap_orig.clone();
     b.iter(|| {
-        let mut hashmap = hashmap_orig.clone();
         for i in 400..500 {
             hashmap.remove(&i);
         }
