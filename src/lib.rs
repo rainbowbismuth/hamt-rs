@@ -73,7 +73,7 @@ macro_rules! make_hamt_type {
             Alt($rc_alt)
         }
 
-        #[derive(Debug, PartialEq, Eq)]
+        #[derive(Debug)]
         enum Alt<K, V> {
             Bitmap(usize, Bitmap, Vec<$hamt<K, V>>),
             Full(usize, Vec<$hamt<K, V>>),
@@ -147,6 +147,36 @@ macro_rules! make_hamt_type {
                             true // don't have to check shared structure
                         } else {
                             rc1.deref() == rc2.deref()
+                        }
+                    }
+                    (_, _) => false
+                }
+            }
+        }
+
+        impl<K, V> Eq for Alt<K, V> where K: Eq, V: Eq { }
+
+        impl<K, V> PartialEq for Alt<K, V> where K: PartialEq, V: PartialEq {
+            fn eq(&self, other: &Alt<K, V>) -> bool {
+                match (self, other) {
+                    (&Alt::Bitmap(s1, bm1, ref v1), &Alt::Bitmap(s2, bm2, ref v2)) => {
+                        s1 == s2 && bm1 == bm2 && v1 == v2
+                    }
+                    (&Alt::Full(s1, ref v1), &Alt::Full(s2, ref v2)) => {
+                        s1 == s2 && v1 == v2
+                    }
+                    (&Alt::Collision(h1, ref kvs1), &Alt::Collision(h2, ref kvs2)) => {
+                        if h1 != h2 {
+                            false
+                        } else if kvs1.len() != kvs2.len() {
+                            false
+                        } else {
+                            for kv in kvs1 {
+                                if !kvs2.contains(kv) {
+                                    return false;
+                                }
+                            }
+                            true
                         }
                     }
                     (_, _) => false
