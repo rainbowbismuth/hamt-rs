@@ -298,13 +298,8 @@ macro_rules! make_hamt_type {
             fn collision_adjust<F, Q: ?Sized>(h: HashBits, key: &Q, f: F, vs: &[(K, V)]) -> Self
                 where F: FnOnce(&V) -> V, K: Borrow<Q>, Q: Hash + Eq {
                 let mut vs_prime = vs.clone().to_vec();
-                match vs.iter().position(|ref i| i.0.borrow() == key) {
-                    Some(idx) => {
-                        vs_prime[idx].1 = f(&vs_prime[idx].1);
-                    },
-                    _ => {
-                        ;
-                    }
+                if let Some(idx) = vs.iter().position(|ref i| i.0.borrow() == key) {
+                    vs_prime[idx].1 = f(&vs_prime[idx].1);
                 }
                 $hamt {
                     inline: Inline::Alt($rc_new(Alt::Collision(h, vs_prime)))
