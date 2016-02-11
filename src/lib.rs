@@ -166,18 +166,7 @@ macro_rules! make_hamt_type {
                         s1 == s2 && v1 == v2
                     }
                     (&Alt::Collision(h1, ref kvs1), &Alt::Collision(h2, ref kvs2)) => {
-                        if h1 != h2 {
-                            false
-                        } else if kvs1.len() != kvs2.len() {
-                            false
-                        } else {
-                            for kv in kvs1 {
-                                if !kvs2.contains(kv) {
-                                    return false;
-                                }
-                            }
-                            true
-                        }
+                        h1 == h2 && kvs1.len() == kvs2.len() && kvs1.iter().all(|kv| kvs2.contains(kv))
                     }
                     (_, _) => false
                 }
