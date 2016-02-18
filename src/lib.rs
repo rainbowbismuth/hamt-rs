@@ -104,6 +104,10 @@ impl<'a, K, V, HamtRef> Iterator for Keys<'a, K, V, HamtRef>
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
 }
 
 impl<'a, K, V, HamtRef> Iterator for Values<'a, K, V, HamtRef>
@@ -115,6 +119,10 @@ impl<'a, K, V, HamtRef> Iterator for Values<'a, K, V, HamtRef>
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
     }
 }
 
