@@ -43,37 +43,57 @@ pub enum Hamt<K, V, HamtRef> {
     Empty,
     Leaf(HashBits, K, V),
     Bitmap(Size, Bitmap, Vec<HamtRef>),
-    Collision(HashBits, Vec<(K, V)>)
+    Collision(HashBits, Vec<(K, V)>),
 }
 
 #[derive(Clone)]
-enum Traversing<'a, K, V, HamtRef> where K: 'a, V: 'a, HamtRef: 'a {
+enum Traversing<'a, K, V, HamtRef>
+    where K: 'a,
+          V: 'a,
+          HamtRef: 'a
+{
     Leaf(&'a K, &'a V),
     Bitmap(slice::Iter<'a, HamtRef>),
-    Collision(slice::Iter<'a, (K, V)>)
+    Collision(slice::Iter<'a, (K, V)>),
 }
 
 /// A key value iterator that iterates in an unspecified order.
 #[derive(Clone)]
-pub struct Iter<'a, K, V, HamtRef> where K: 'a, V: 'a, HamtRef: 'a  {
+pub struct Iter<'a, K, V, HamtRef>
+    where K: 'a,
+          V: 'a,
+          HamtRef: 'a
+{
     size: usize,
     count: usize,
-    stack: Vec<Traversing<'a, K, V, HamtRef>>
+    stack: Vec<Traversing<'a, K, V, HamtRef>>,
 }
 
 /// Key iterator
 #[derive(Clone)]
-pub struct Keys<'a, K, V, HamtRef> where K: 'a, V: 'a, HamtRef: 'a  {
-    iter: Map<Iter<'a, K, V, HamtRef>, fn((&'a K, &'a V)) -> &'a K>
+pub struct Keys<'a, K, V, HamtRef>
+    where K: 'a,
+          V: 'a,
+          HamtRef: 'a
+{
+    iter: Map<Iter<'a, K, V, HamtRef>, fn((&'a K, &'a V)) -> &'a K>,
 }
 
 /// Value iterator
 #[derive(Clone)]
-pub struct Values<'a, K, V, HamtRef> where K: 'a, V: 'a, HamtRef: 'a  {
-    iter: Map<Iter<'a, K, V, HamtRef>, fn((&'a K, &'a V)) -> &'a V>
+pub struct Values<'a, K, V, HamtRef>
+    where K: 'a,
+          V: 'a,
+          HamtRef: 'a
+{
+    iter: Map<Iter<'a, K, V, HamtRef>, fn((&'a K, &'a V)) -> &'a V>,
 }
 
-impl<'a, K, V, HamtRef> Iterator for Keys<'a, K, V, HamtRef> where K: 'a + Clone, V: 'a + Clone, HamtRef: 'a + Clone + Deref<Target=Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>> {
+impl<'a, K, V, HamtRef> Iterator for Keys<'a, K, V, HamtRef>
+    where K: 'a + Clone,
+          V: 'a + Clone,
+          HamtRef: 'a + Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+{
     type Item = &'a K;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -81,7 +101,11 @@ impl<'a, K, V, HamtRef> Iterator for Keys<'a, K, V, HamtRef> where K: 'a + Clone
     }
 }
 
-impl<'a, K, V, HamtRef> Iterator for Values<'a, K, V, HamtRef> where K: 'a + Clone, V: 'a + Clone, HamtRef: 'a + Clone + Deref<Target=Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>> {
+impl<'a, K, V, HamtRef> Iterator for Values<'a, K, V, HamtRef>
+    where K: 'a + Clone,
+          V: 'a + Clone,
+          HamtRef: 'a + Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+{
     type Item = &'a V;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -97,75 +121,93 @@ fn pair_to_value<'a, K, V>(kv: (&'a K, &'a V)) -> &'a V {
     kv.1
 }
 
-impl<K, V, HamtRef> Eq for Hamt<K, V, HamtRef> where K: Eq, V: Eq, HamtRef: Eq { }
+impl<K, V, HamtRef> Eq for Hamt<K, V, HamtRef>
+    where K: Eq,
+          V: Eq,
+          HamtRef: Eq
+{
+}
 
-impl<K, V, HamtRef> PartialEq for Hamt<K, V, HamtRef> where K: PartialEq, V: PartialEq, HamtRef: PartialEq {
+impl<K, V, HamtRef> PartialEq for Hamt<K, V, HamtRef>
+    where K: PartialEq,
+          V: PartialEq,
+          HamtRef: PartialEq
+{
     fn eq(&self, other: &Hamt<K, V, HamtRef>) -> bool {
         match (self, other) {
             (&Hamt::Empty, &Hamt::Empty) => true,
-            (&Hamt::Leaf(h1, ref k1, ref v1), &Hamt::Leaf(h2, ref k2, ref v2)) => {
-                h1 == h2 && k1 == k2 && v1 == v2
-            },
-            (&Hamt::Bitmap(s1, b1, ref vs1), &Hamt::Bitmap(s2, b2, ref vs2)) => {
-                s1 == s2 && b1 == b2 && vs1 == vs2
-            },
-            (&Hamt::Collision(hx1, ref kvs1), &Hamt::Collision(hx2, ref kvs2)) => {
+            (&Hamt::Leaf(h1, ref k1, ref v1),
+             &Hamt::Leaf(h2, ref k2, ref v2)) => h1 == h2 && k1 == k2 && v1 == v2,
+            (&Hamt::Bitmap(s1, b1, ref vs1),
+             &Hamt::Bitmap(s2, b2, ref vs2)) => s1 == s2 && b1 == b2 && vs1 == vs2,
+            (&Hamt::Collision(hx1, ref kvs1),
+             &Hamt::Collision(hx2, ref kvs2)) => {
                 hx1 == hx2 && kvs1.len() == kvs2.len() && kvs1.iter().all(|kv| kvs2.contains(kv))
-            },
-            (_, _) => false
+            }
+            (_, _) => false,
         }
     }
 }
-impl<'a, K, V, HamtRef> Iterator for Iter<'a, K, V, HamtRef> where K: 'a + Clone, V: 'a + Clone, HamtRef: 'a + Clone + Deref<Target=Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>> {
+impl<'a, K, V, HamtRef> Iterator for Iter<'a, K, V, HamtRef>
+    where K: 'a + Clone,
+          V: 'a + Clone,
+          HamtRef: 'a + Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+{
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
         let last = match self.stack.last() {
             Some(iter) => (*iter).clone(),
-            None => { return None; }
+            None => {
+                return None;
+            }
         };
         match last {
             Traversing::Leaf(k, v) => {
                 self.stack.pop();
                 self.count += 1;
                 Some((k, v))
-            },
+            }
             Traversing::Bitmap(mut iter) => {
                 let next = iter.next();
                 self.stack.pop();
                 self.stack.push(Traversing::Bitmap(iter));
                 match next {
-                    Some(hamt) => match *hamt.deref() {
-                        Hamt::Empty => self.next(),
-                        Hamt::Leaf(_, ref k, ref v) => {
-                            self.count += 1;
-                            Some((k, v))
+                    Some(hamt) => {
+                        match *hamt.deref() {
+                            Hamt::Empty => self.next(),
+                            Hamt::Leaf(_, ref k, ref v) => {
+                                self.count += 1;
+                                Some((k, v))
+                            }
+                            Hamt::Bitmap(_, _, ref vs) => {
+                                self.stack.push(Traversing::Bitmap(vs.iter()));
+                                self.next()
+                            }
+                            Hamt::Collision(_, ref vs) => {
+                                self.stack.push(Traversing::Collision(vs.iter()));
+                                self.next()
+                            }
                         }
-                        Hamt::Bitmap(_, _, ref vs) => {
-                            self.stack.push(Traversing::Bitmap(vs.iter()));
-                            self.next()
-                        }
-                        Hamt::Collision(_, ref vs) => {
-                            self.stack.push(Traversing::Collision(vs.iter()));
-                            self.next()
-                        }
-                    },
+                    }
                     None => {
                         self.stack.pop();
                         self.next()
                     }
                 }
-            },
-            Traversing::Collision(mut iter) => match iter.next() {
-                Some(ref kv) => {
-                    self.count += 1;
-                    self.stack.pop();
-                    self.stack.push(Traversing::Collision(iter));
-                    Some((&kv.0, &kv.1))
-                },
-                None => {
-                    self.stack.pop();
-                    self.next()
+            }
+            Traversing::Collision(mut iter) => {
+                match iter.next() {
+                    Some(ref kv) => {
+                        self.count += 1;
+                        self.stack.pop();
+                        self.stack.push(Traversing::Collision(iter));
+                        Some((&kv.0, &kv.1))
+                    }
+                    None => {
+                        self.stack.pop();
+                        self.next()
+                    }
                 }
             }
         }
@@ -176,20 +218,34 @@ impl<'a, K, V, HamtRef> Iterator for Iter<'a, K, V, HamtRef> where K: 'a + Clone
     }
 }
 
-impl<K, V, HamtRef> FromIterator<(K, V)> for Hamt<K, V, HamtRef> where K: Eq + Hash + Clone, V: Clone, HamtRef: Clone + Deref<Target=Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>> {
-    fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=(K, V)> {
+impl<K, V, HamtRef> FromIterator<(K, V)> for Hamt<K, V, HamtRef>
+    where K: Eq + Hash + Clone,
+          V: Clone,
+          HamtRef: Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+{
+    fn from_iter<T>(iterator: T) -> Self
+        where T: IntoIterator<Item = (K, V)>
+    {
         iterator.into_iter().fold(Hamt::new(), |x, kv| x.insert(&kv.0, &kv.1))
     }
 }
 
-impl<'a, K, V, HamtRef> FromIterator<(&'a K, &'a V)> for Hamt<K, V, HamtRef> where K: Eq + Hash + Clone, V: Clone, HamtRef: Clone + Deref<Target=Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>> {
-    fn from_iter<T>(iterator: T) -> Self where T: IntoIterator<Item=(&'a K, &'a V)> {
+impl<'a, K, V, HamtRef> FromIterator<(&'a K, &'a V)> for Hamt<K, V, HamtRef>
+    where K: Eq + Hash + Clone,
+          V: Clone,
+          HamtRef: Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+{
+    fn from_iter<T>(iterator: T) -> Self
+        where T: IntoIterator<Item = (&'a K, &'a V)>
+    {
         iterator.into_iter().fold(Hamt::new(), |x, kv| x.insert(kv.0, kv.1))
     }
 }
 
 impl<'a, K, V, HamtRef> IntoIterator for &'a Hamt<K, V, HamtRef>
-    where K: 'a + Clone + Hash + Eq, V: 'a + Clone, HamtRef: 'a + Clone + Deref<Target=Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+    where K: 'a + Clone + Hash + Eq,
+          V: 'a + Clone,
+          HamtRef: 'a + Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, V, HamtRef>;
@@ -200,7 +256,10 @@ impl<'a, K, V, HamtRef> IntoIterator for &'a Hamt<K, V, HamtRef>
 }
 
 impl<'a, K, Q: ?Sized, V, HamtRef> Index<&'a Q> for Hamt<K, V, HamtRef>
-    where K: Hash + Eq + Clone + Borrow<Q>, V: Clone, Q: Eq + Hash, HamtRef: Clone + Deref<Target=Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+    where K: Hash + Eq + Clone + Borrow<Q>,
+          V: Clone,
+          Q: Eq + Hash,
+          HamtRef: Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
 {
     type Output = V;
     fn index(&self, index: &Q) -> &Self::Output {
@@ -209,8 +268,10 @@ impl<'a, K, Q: ?Sized, V, HamtRef> Index<&'a Q> for Hamt<K, V, HamtRef>
 }
 
 impl<K, V, HamtRef> Hamt<K, V, HamtRef>
-    where K: Hash + Eq + Clone, V: Clone, HamtRef: Clone + Deref<Target=Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>> {
-
+    where K: Hash + Eq + Clone,
+          V: Clone,
+          HamtRef: Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+{
     pub fn new() -> Self {
         Hamt::Empty
     }
@@ -232,7 +293,7 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
         match *self {
             Hamt::Leaf(_, _, _) => true,
             Hamt::Collision(_, _) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -241,13 +302,14 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     }
 
     fn collision_update<Q: ?Sized>(h: HashBits, k: &Q, v: V, vs: &[(K, V)]) -> Self
-        where K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K>
+        where K: Borrow<Q>,
+              Q: Hash + Eq + ToOwned<Owned = K>
     {
         let mut vs_prime = vs.clone().to_vec();
         match vs.iter().position(|ref i| i.0.borrow() == k) {
             Some(idx) => {
                 vs_prime[idx].1 = v;
-            },
+            }
             None => {
                 vs_prime.push((k.to_owned(), v));
             }
@@ -262,7 +324,9 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     }
 
     fn collision_adjust<F, Q: ?Sized>(h: HashBits, key: &Q, f: F, vs: &[(K, V)]) -> Self
-        where F: FnOnce(&V) -> V, K: Borrow<Q>, Q: Hash + Eq
+        where F: FnOnce(&V) -> V,
+              K: Borrow<Q>,
+              Q: Hash + Eq
     {
         let mut vs_prime = vs.clone().to_vec();
         if let Some(idx) = vs.iter().position(|ref i| i.0.borrow() == key) {
@@ -272,7 +336,7 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     }
 
     fn bitmap(b: Bitmap, vs: Vec<HamtRef>) -> Self {
-        let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x,y| x+y);
+        let size = (&vs).iter().map(|ref st| st.len()).fold(0, |x, y| x + y);
         Hamt::Bitmap(size, b, vs)
     }
 
@@ -302,8 +366,8 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                 Hamt::Empty => vec![],
                 Hamt::Leaf(_, ref k, ref v) => vec![Traversing::Leaf(k, v)],
                 Hamt::Bitmap(_, _, ref vs) => vec![Traversing::Bitmap(vs.iter())],
-                Hamt::Collision(_, ref vs) => vec![Traversing::Collision(vs.iter())]
-            }
+                Hamt::Collision(_, ref vs) => vec![Traversing::Collision(vs.iter())],
+            },
         }
     }
 
@@ -320,7 +384,8 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     /// Returns a reference to the value corresponding to the given key, or None if there
     /// is no value associated with the key.
     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
-        where K: Borrow<Q>, Q: Hash + Eq
+        where K: Borrow<Q>,
+              Q: Hash + Eq
     {
         let mut sh = SipHasher::new();
         k.hash(&mut sh);
@@ -331,14 +396,14 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
             match *hamt {
                 Hamt::Empty => {
                     return None;
-                },
+                }
                 Hamt::Leaf(lh, ref lk, ref lv) => {
                     if h == lh && k == lk.borrow() {
                         return Some(&lv);
                     } else {
                         return None;
                     }
-                },
+                }
                 Hamt::Bitmap(_, b, ref vs) => {
                     let m = mask(h, shift);
                     if b & m == 0 {
@@ -348,7 +413,7 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                         hamt = vs[sparse_index(b, m)].deref();
                         continue;
                     }
-                },
+                }
                 Hamt::Collision(hx, ref vs) => {
                     if h == hx {
                         for kv in vs {
@@ -366,14 +431,17 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
 
     /// Returns true if the map contains the given key.
     pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
-        where K: Borrow<Q>, Q: Hash + Eq
+        where K: Borrow<Q>,
+              Q: Hash + Eq
     {
         self.get(k).is_some()
     }
 
     pub fn insert<Q: ?Sized, R: ?Sized>(&self, k: &Q, v: &R) -> Self
-        where K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K>,
-              V: Borrow<R>, R: ToOwned<Owned=V>
+        where K: Borrow<Q>,
+              Q: Hash + Eq + ToOwned<Owned = K>,
+              V: Borrow<R>,
+              R: ToOwned<Owned = V>
     {
         let mut sh = SipHasher::new();
         k.hash(&mut sh);
@@ -382,7 +450,8 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     }
 
     fn insert_recur<Q: ?Sized>(&self, h: HashBits, k: &Q, v: V, s: Shift) -> Self
-        where K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K>
+        where K: Borrow<Q>,
+              Q: Hash + Eq + ToOwned<Owned = K>
     {
         match *self {
             Hamt::Empty => Hamt::Leaf(h, k.to_owned(), v),
@@ -396,7 +465,7 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                 } else {
                     Self::two(s, h, k.to_owned(), v, lh, lk, lv)
                 }
-            },
+            }
             Hamt::Bitmap(_, b, ref vs) => {
                 let m = mask(h, s);
                 let i = sparse_index(b, m);
@@ -411,7 +480,7 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                     vs_prime[i] = new_t;
                     Self::bitmap(b, vs_prime)
                 }
-            },
+            }
             Hamt::Collision(hx, ref vs) => {
                 if h == hx {
                     Self::collision_update(h, k, v, vs)
@@ -425,7 +494,8 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
 
     /// Returns a new map without an entry corresponding to the given key.
     pub fn remove<Q: ?Sized>(&self, k: &Q) -> Self
-        where K: Borrow<Q>, Q: Hash + Eq
+        where K: Borrow<Q>,
+              Q: Hash + Eq
     {
         let mut sh = SipHasher::new();
         k.hash(&mut sh);
@@ -434,7 +504,8 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     }
 
     fn remove_recur<Q: ?Sized>(&self, h: HashBits, k: &Q, s: Shift) -> Self
-        where K: Borrow<Q>, Q: Hash + Eq
+        where K: Borrow<Q>,
+              Q: Hash + Eq
     {
         match *self {
             Hamt::Empty => Hamt::Empty,
@@ -444,7 +515,7 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                 } else {
                     self.clone()
                 }
-            },
+            }
             Hamt::Bitmap(_, b, ref vs) => {
                 let m = mask(h, s);
                 let i = sparse_index(b, m);
@@ -454,37 +525,35 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                     let st = &vs[i];
                     let st_prime = st.remove_recur(h, k, s + BITS_PER_SUBKEY);
                     match st_prime {
-                        Hamt::Empty => match vs.len() {
-                            1 => {
-                                Hamt::Empty
-                            },
-                            2 => {
-                                match (i, &vs[0], &vs[1]) {
-                                    (0, _, l) => {
-                                        if l.is_leaf_or_collision() {
-                                            l.deref().clone()
-                                        } else {
-                                            Self::bitmap(b & (!m), vec![l.clone()])
+                        Hamt::Empty => {
+                            match vs.len() {
+                                1 => Hamt::Empty,
+                                2 => {
+                                    match (i, &vs[0], &vs[1]) {
+                                        (0, _, l) => {
+                                            if l.is_leaf_or_collision() {
+                                                l.deref().clone()
+                                            } else {
+                                                Self::bitmap(b & (!m), vec![l.clone()])
+                                            }
                                         }
-                                    },
-                                    (1, l, _) => {
-                                        if l.is_leaf_or_collision() {
-                                            l.deref().clone()
-                                        } else {
-                                            Self::bitmap(b & (!m), vec![l.clone()])
+                                        (1, l, _) => {
+                                            if l.is_leaf_or_collision() {
+                                                l.deref().clone()
+                                            } else {
+                                                Self::bitmap(b & (!m), vec![l.clone()])
+                                            }
                                         }
-                                    }
-                                    _ => {
-                                        panic!("i can only be 0 or 1")
+                                        _ => panic!("i can only be 0 or 1"),
                                     }
                                 }
-                            },
-                            _ => {
-                                let mut vs_prime = vs.clone();
-                                vs_prime.remove(i);
-                                Self::bitmap(b & (!m), vs_prime)
+                                _ => {
+                                    let mut vs_prime = vs.clone();
+                                    vs_prime.remove(i);
+                                    Self::bitmap(b & (!m), vs_prime)
+                                }
                             }
-                        },
+                        }
                         _ => {
                             if st_prime.is_leaf_or_collision() && vs.len() == 1 {
                                 st_prime
@@ -496,7 +565,7 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                         }
                     }
                 }
-            },
+            }
             Hamt::Collision(hx, ref vs) => {
                 if h == hx {
                     match vs.iter().position(|ref kv| kv.0.borrow() == k) {
@@ -510,8 +579,8 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                             } else {
                                 Self::collision_delete(h, i, vs)
                             }
-                        },
-                        _ => self.clone()
+                        }
+                        _ => self.clone(),
                     }
                 } else {
                     self.clone()
@@ -520,9 +589,12 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
         }
     }
 
-    /// Modifies the value tied to the given key with the function `f`. Otherwise, the map returned is identical.
+    /// Modifies the value tied to the given key with the function `f`. Otherwise, the map returned
+    /// is identical.
     pub fn adjust<F, Q: ?Sized>(&self, key: &Q, f: F) -> Self
-        where F: FnOnce(&V) -> V, K: Borrow<Q>, Q: Hash + Eq
+        where F: FnOnce(&V) -> V,
+              K: Borrow<Q>,
+              Q: Hash + Eq
     {
         let mut sh = SipHasher::new();
         key.hash(&mut sh);
@@ -531,7 +603,9 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     }
 
     fn adjust_recur<F, Q: ?Sized>(&self, h: HashBits, key: &Q, s: Shift, f: F) -> Self
-        where F: FnOnce(&V) -> V, K: Borrow<Q>, Q: Hash + Eq
+        where F: FnOnce(&V) -> V,
+              K: Borrow<Q>,
+              Q: Hash + Eq
     {
         match *self {
             Hamt::Empty => Hamt::Empty,
@@ -541,7 +615,7 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                 } else {
                     self.clone()
                 }
-            },
+            }
             Hamt::Bitmap(_, b, ref vs) => {
                 let m = mask(h, s);
                 let i = sparse_index(b, m);
@@ -554,24 +628,26 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
                     vs_prime[i] = st_prime;
                     Self::bitmap(b, vs_prime)
                 }
-            },
-            Hamt::Collision(_, ref vs) => {
-                Self::collision_adjust(h, key, f, vs)
             }
+            Hamt::Collision(_, ref vs) => Self::collision_adjust(h, key, f, vs),
         }
     }
 
     /// Updates the value at the given key using `f`. If `f` returns None, then the entry
     /// is removed.
     pub fn update<F, Q: ?Sized>(&self, key: &Q, f: F) -> Self
-        where F: FnOnce(&V) -> Option<V>, K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K>
+        where F: FnOnce(&V) -> Option<V>,
+              K: Borrow<Q>,
+              Q: Hash + Eq + ToOwned<Owned = K>
     {
         match self.get(key) {
-            Some(ref value) => match f(value) {
-                Some(value_prime) => self.insert(key, &value_prime),
-                None => self.remove(key)
-            },
-            None => self.clone()
+            Some(ref value) => {
+                match f(value) {
+                    Some(value_prime) => self.insert(key, &value_prime),
+                    None => self.remove(key),
+                }
+            }
+            None => self.clone(),
         }
 
     }
@@ -579,24 +655,25 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     /// Updates the value at the given key using `f` as in `Self::update`. If no value exists for
     /// the given key, then `f` is passed `None`.
     pub fn alter<F, Q: ?Sized>(&self, key: &Q, f: F) -> Self
-        where F: FnOnce(Option<&V>) -> Option<V>, K: Borrow<Q>, Q: Hash + Eq + ToOwned<Owned=K> {
+        where F: FnOnce(Option<&V>) -> Option<V>,
+              K: Borrow<Q>,
+              Q: Hash + Eq + ToOwned<Owned = K>
+    {
         match f(self.get(key)) {
-            Some(value) => {
-                self.insert(key, &value)
-            },
-            None => self.remove(key)
+            Some(value) => self.insert(key, &value),
+            None => self.remove(key),
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RcTrick<K, V> {
-    RcTrick(Rc<Hamt<K, V, RcTrick<K, V>>>)
+    RcTrick(Rc<Hamt<K, V, RcTrick<K, V>>>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ArcTrick<K, V> {
-    ArcTrick(Arc<Hamt<K, V, ArcTrick<K, V>>>)
+    ArcTrick(Arc<Hamt<K, V, ArcTrick<K, V>>>),
 }
 
 impl<K, V> From<Hamt<K, V, RcTrick<K, V>>> for RcTrick<K, V> {
@@ -615,7 +692,7 @@ impl<K, V> Deref for RcTrick<K, V> {
     type Target = Hamt<K, V, RcTrick<K, V>>;
     fn deref(&self) -> &Self::Target {
         match *self {
-            RcTrick::RcTrick(ref rc) => rc.deref()
+            RcTrick::RcTrick(ref rc) => rc.deref(),
         }
     }
 }
@@ -624,7 +701,7 @@ impl<K, V> Deref for ArcTrick<K, V> {
     type Target = Hamt<K, V, ArcTrick<K, V>>;
     fn deref(&self) -> &Self::Target {
         match *self {
-            ArcTrick::ArcTrick(ref arc) => arc.deref()
+            ArcTrick::ArcTrick(ref arc) => arc.deref(),
         }
     }
 }
