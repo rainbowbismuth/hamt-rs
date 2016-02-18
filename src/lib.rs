@@ -681,9 +681,17 @@ pub enum ArcTrick<K, V> {
     ArcTrick(Arc<Hamt<K, V, ArcTrick<K, V>>>),
 }
 
-impl<K, V> HamtRefLike<K, V> for RcTrick<K, V> where K: Clone, V: Clone { }
+impl<K, V> HamtRefLike<K, V> for RcTrick<K, V>
+    where K: Clone,
+          V: Clone
+{
+}
 
-impl<K, V> HamtRefLike<K, V> for ArcTrick<K, V> where K: Clone, V: Clone { }
+impl<K, V> HamtRefLike<K, V> for ArcTrick<K, V>
+    where K: Clone,
+          V: Clone
+{
+}
 
 impl<K, V> From<Hamt<K, V, RcTrick<K, V>>> for RcTrick<K, V> {
     fn from(t: Hamt<K, V, RcTrick<K, V>>) -> Self {
