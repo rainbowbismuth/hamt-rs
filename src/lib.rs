@@ -671,57 +671,65 @@ impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RcTrick<K, V> {
-    RcTrick(Rc<Hamt<K, V, RcTrick<K, V>>>),
+pub mod internal {
+
+    use super::Hamt;
+    use std::rc::Rc;
+    use std::sync::Arc;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum RcTrick<K, V> {
+        RcTrick(Rc<Hamt<K, V, RcTrick<K, V>>>),
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum ArcTrick<K, V> {
+        ArcTrick(Arc<Hamt<K, V, ArcTrick<K, V>>>),
+    }
+
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ArcTrick<K, V> {
-    ArcTrick(Arc<Hamt<K, V, ArcTrick<K, V>>>),
-}
-
-impl<K, V> HamtRefLike<K, V> for RcTrick<K, V>
+impl<K, V> HamtRefLike<K, V> for internal::RcTrick<K, V>
     where K: Clone,
           V: Clone
 {
 }
 
-impl<K, V> HamtRefLike<K, V> for ArcTrick<K, V>
+impl<K, V> HamtRefLike<K, V> for internal::ArcTrick<K, V>
     where K: Clone,
           V: Clone
 {
 }
 
-impl<K, V> From<Hamt<K, V, RcTrick<K, V>>> for RcTrick<K, V> {
-    fn from(t: Hamt<K, V, RcTrick<K, V>>) -> Self {
-        RcTrick::RcTrick(Rc::from(t))
+impl<K, V> From<Hamt<K, V, internal::RcTrick<K, V>>> for internal::RcTrick<K, V> {
+    fn from(t: Hamt<K, V, internal::RcTrick<K, V>>) -> Self {
+        internal::RcTrick::RcTrick(Rc::from(t))
     }
 }
 
-impl<K, V> From<Hamt<K, V, ArcTrick<K, V>>> for ArcTrick<K, V> {
-    fn from(t: Hamt<K, V, ArcTrick<K, V>>) -> Self {
-        ArcTrick::ArcTrick(Arc::from(t))
+impl<K, V> From<Hamt<K, V, internal::ArcTrick<K, V>>> for internal::ArcTrick<K, V> {
+    fn from(t: Hamt<K, V, internal::ArcTrick<K, V>>) -> Self {
+        internal::ArcTrick::ArcTrick(Arc::from(t))
     }
 }
 
-impl<K, V> Deref for RcTrick<K, V> {
-    type Target = Hamt<K, V, RcTrick<K, V>>;
+impl<K, V> Deref for internal::RcTrick<K, V> {
+    type Target = Hamt<K, V, internal::RcTrick<K, V>>;
     fn deref(&self) -> &Self::Target {
         match *self {
-            RcTrick::RcTrick(ref rc) => rc.deref(),
+            internal::RcTrick::RcTrick(ref rc) => rc.deref(),
         }
     }
 }
 
-impl<K, V> Deref for ArcTrick<K, V> {
-    type Target = Hamt<K, V, ArcTrick<K, V>>;
+impl<K, V> Deref for internal::ArcTrick<K, V> {
+    type Target = Hamt<K, V, internal::ArcTrick<K, V>>;
     fn deref(&self) -> &Self::Target {
         match *self {
-            ArcTrick::ArcTrick(ref arc) => arc.deref(),
+            internal::ArcTrick::ArcTrick(ref arc) => arc.deref(),
         }
     }
 }
 
-pub type HamtRc<K, V> = Hamt<K, V, RcTrick<K, V>>;
-pub type HamtArc<K, V> = Hamt<K, V, ArcTrick<K, V>>;
+pub type HamtRc<K, V> = Hamt<K, V, internal::RcTrick<K, V>>;
+pub type HamtArc<K, V> = Hamt<K, V, internal::ArcTrick<K, V>>;
