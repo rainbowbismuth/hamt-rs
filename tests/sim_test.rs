@@ -22,11 +22,11 @@ impl Arbitrary for Command {
         let cmd: usize = Arbitrary::arbitrary(g);
         let key: isize = Arbitrary::arbitrary(g);
         match cmd % 5 {
-            0 => Command::CheckEquals(key % 200),
-            1 => Command::Remove(key % 200),
+            0 => Command::CheckEquals(key % 1000),
+            1 => Command::Remove(key % 1000),
             _ => {
                 let value: isize = Arbitrary::arbitrary(g);
-                Command::Insert(key % 200, value % 200)
+                Command::Insert(key % 1000, value % 1000)
             }
         }
     }
