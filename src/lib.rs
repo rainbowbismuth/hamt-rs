@@ -69,6 +69,9 @@ pub struct Iter<'a, K, V, HamtRef>
     stack: Vec<Traversing<'a, K, V, HamtRef>>,
 }
 
+type KeySelectFn<'a, K, V> = fn((&'a K, &'a V)) -> &'a K;
+type ValSelectFn<'a, K, V> = fn((&'a K, &'a V)) -> &'a V;
+
 /// Key iterator
 #[derive(Clone)]
 pub struct Keys<'a, K, V, HamtRef>
@@ -76,7 +79,7 @@ pub struct Keys<'a, K, V, HamtRef>
           V: 'a,
           HamtRef: 'a
 {
-    iter: Map<Iter<'a, K, V, HamtRef>, fn((&'a K, &'a V)) -> &'a K>,
+    iter: Map<Iter<'a, K, V, HamtRef>, KeySelectFn<'a, K, V>>,
 }
 
 /// Value iterator
@@ -86,13 +89,15 @@ pub struct Values<'a, K, V, HamtRef>
           V: 'a,
           HamtRef: 'a
 {
-    iter: Map<Iter<'a, K, V, HamtRef>, fn((&'a K, &'a V)) -> &'a V>,
+    iter: Map<Iter<'a, K, V, HamtRef>, ValSelectFn<'a, K, V>>,
 }
+
+pub trait HamtRefLike<K, V> : Clone + Deref<Target = Hamt<K, V, Self>> + From<Hamt<K, V, Self>> { }
 
 impl<'a, K, V, HamtRef> Iterator for Keys<'a, K, V, HamtRef>
     where K: 'a + Clone,
           V: 'a + Clone,
-          HamtRef: 'a + Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+          HamtRef: 'a + HamtRefLike<K, V>
 {
     type Item = &'a K;
 
@@ -104,7 +109,7 @@ impl<'a, K, V, HamtRef> Iterator for Keys<'a, K, V, HamtRef>
 impl<'a, K, V, HamtRef> Iterator for Values<'a, K, V, HamtRef>
     where K: 'a + Clone,
           V: 'a + Clone,
-          HamtRef: 'a + Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+          HamtRef: 'a + HamtRefLike<K, V>
 {
     type Item = &'a V;
 
@@ -151,7 +156,7 @@ impl<K, V, HamtRef> PartialEq for Hamt<K, V, HamtRef>
 impl<'a, K, V, HamtRef> Iterator for Iter<'a, K, V, HamtRef>
     where K: 'a + Clone,
           V: 'a + Clone,
-          HamtRef: 'a + Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+          HamtRef: 'a + HamtRefLike<K, V>
 {
     type Item = (&'a K, &'a V);
 
@@ -221,7 +226,7 @@ impl<'a, K, V, HamtRef> Iterator for Iter<'a, K, V, HamtRef>
 impl<K, V, HamtRef> FromIterator<(K, V)> for Hamt<K, V, HamtRef>
     where K: Eq + Hash + Clone,
           V: Clone,
-          HamtRef: Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+          HamtRef: HamtRefLike<K, V>
 {
     fn from_iter<T>(iterator: T) -> Self
         where T: IntoIterator<Item = (K, V)>
@@ -233,7 +238,7 @@ impl<K, V, HamtRef> FromIterator<(K, V)> for Hamt<K, V, HamtRef>
 impl<'a, K, V, HamtRef> FromIterator<(&'a K, &'a V)> for Hamt<K, V, HamtRef>
     where K: Eq + Hash + Clone,
           V: Clone,
-          HamtRef: Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+          HamtRef: HamtRefLike<K, V>
 {
     fn from_iter<T>(iterator: T) -> Self
         where T: IntoIterator<Item = (&'a K, &'a V)>
@@ -245,7 +250,7 @@ impl<'a, K, V, HamtRef> FromIterator<(&'a K, &'a V)> for Hamt<K, V, HamtRef>
 impl<'a, K, V, HamtRef> IntoIterator for &'a Hamt<K, V, HamtRef>
     where K: 'a + Clone + Hash + Eq,
           V: 'a + Clone,
-          HamtRef: 'a + Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+          HamtRef: 'a + HamtRefLike<K, V>
 {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, V, HamtRef>;
@@ -259,7 +264,7 @@ impl<'a, K, Q: ?Sized, V, HamtRef> Index<&'a Q> for Hamt<K, V, HamtRef>
     where K: Hash + Eq + Clone + Borrow<Q>,
           V: Clone,
           Q: Eq + Hash,
-          HamtRef: Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+          HamtRef: HamtRefLike<K, V>
 {
     type Output = V;
     fn index(&self, index: &Q) -> &Self::Output {
@@ -270,7 +275,7 @@ impl<'a, K, Q: ?Sized, V, HamtRef> Index<&'a Q> for Hamt<K, V, HamtRef>
 impl<K, V, HamtRef> Hamt<K, V, HamtRef>
     where K: Hash + Eq + Clone,
           V: Clone,
-          HamtRef: Clone + Deref<Target = Hamt<K, V, HamtRef>> + From<Hamt<K, V, HamtRef>>
+          HamtRef: HamtRefLike<K, V>
 {
     pub fn new() -> Self {
         Hamt::Empty
@@ -675,6 +680,10 @@ pub enum RcTrick<K, V> {
 pub enum ArcTrick<K, V> {
     ArcTrick(Arc<Hamt<K, V, ArcTrick<K, V>>>),
 }
+
+impl<K, V> HamtRefLike<K, V> for RcTrick<K, V> where K: Clone, V: Clone { }
+
+impl<K, V> HamtRefLike<K, V> for ArcTrick<K, V> where K: Clone, V: Clone { }
 
 impl<K, V> From<Hamt<K, V, RcTrick<K, V>>> for RcTrick<K, V> {
     fn from(t: Hamt<K, V, RcTrick<K, V>>) -> Self {
